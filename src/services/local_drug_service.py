@@ -1,95 +1,13 @@
-# local_drug_service.py
+# src/services/local_drug_service.py
 
 import io
-import re
-from typing import Dict, List, Set
+from typing import Dict, List, Tuple
 
 import pandas as pd
-from data_sources import chembl_client
+from rdkit import Chem
 
-
-# Allowed short abbreviations
-SHORT_WHITELIST: Set[str] = {"bcg", "hcg", "fsh", "lh", "tsh", "gcsf"}
-
-
-def normalize_name(raw: str) -> List[str]:
-    """
-    Normalize drug name:
-      - Remove parentheses
-      - Split combination drugs by '+'
-      - Convert lowercase
-      - Remove salts (hydrochloride, sulfate, ...)
-      - Remove dosage forms (tablet, injection, ...)
-      - Keep only letters/numbers/space/hyphen
-    """
-    if not isinstance(raw, str):
-        return []
-
-    name = re.sub(r"\(.*?\)", "", raw)
-    parts = re.split(r"\s*\+\s*", name)
-
-    cleaned: List[str] = []
-
-    for p in parts:
-        p = p.strip().lower()
-        if not p:
-            continue
-
-        p = re.sub(
-            r"\b(as|as\.)?\s*(hydrochloride|hcl|sulfate|sulphate|na|sodium|"
-            r"potassium|phosphate|carbonate|mesilate|mesylate|acetate|tartrate|"
-            r"nitrate|maleate|fumarate|succinate|bromide|iodide)\b",
-            "",
-            p,
-        )
-
-        p = re.sub(
-            r"\b(tablet|tablets|capsule|capsules|injection|injections|solution|"
-            r"suspension|cream|ointment|gel|drops|syrup|patch|spray)\b",
-            "",
-            p,
-        )
-
-        p = re.sub(r"[^a-z0-9\s\-]", "", p)
-        p = re.sub(r"\s+", " ", p).strip()
-
-        if p:
-            cleaned.append(p)
-
-    return cleaned
-
-
-def is_radiopharmaceutical(name: str) -> bool:
-    """
-    Detect radiopharmaceutical patterns:
-      - Starting with digits + letters + '-'
-      - Patterns like [131i], [32p], ...
-    """
-    if re.match(r"^\d+\s*[a-z]*-", name):
-        return True
-    if re.search(r"\[\d+\s*[a-z]+\]", name):
-        return True
-    return False
-
-
-def build_normalized_index(names: List[str]) -> Dict[str, List[str]]:
-    """
-    Build mapping:
-      normalized_name -> list of original names
-    """
-    index: Dict[str, List[str]] = {}
-
-    for raw in names:
-        for norm in normalize_name(raw):
-            if is_radiopharmaceutical(norm):
-                continue
-
-            if len(norm) <= 3 and norm not in SHORT_WHITELIST:
-                continue
-
-            index.setdefault(norm, []).append(raw)
-
-    return index
+from src.services.conformer_manager import get_or_build_conformer
+from src.services.chemdb_service import get_local_drug_by_normalized_name
 
 
 def load_local_drugs_from_excel(content: bytes) -> pd.DataFrame:
@@ -105,3 +23,76 @@ def load_local_drugs_from_excel(content: bytes) -> pd.DataFrame:
 
     df = df[df["Name"].notna()].copy()
     return df
+
+
+def process_local_drugs(
+    all_norms: List[str],
+    chembl_lookup: Dict[str, pd.Series],
+) -> Tuple[int, List[str]]:
+    """
+    Process normalized local drug names:
+      - Skip local entries that already exist
+      - Match against local ChEMBL cache
+      - Validate SMILES
+      - Reject large molecules
+      - Build or load conformer
+
+    Args:
+        all_norms: normalized local drug names
+        chembl_lookup: mapping normalized_name -> ChEMBL row (pandas Series)
+
+    Returns:
+        inserted_count: number of successfully inserted drugs
+        unmatched_list: list of names that could not be processed
+    """
+
+    inserted_count = 0
+    unmatched: List[str] = []
+
+    for norm in all_norms:
+        existing = get_local_drug_by_normalized_name(norm)
+        if existing:
+            print(f"  ✓ {norm}: already exists")
+            continue
+
+        if norm not in chembl_lookup:
+            print(f"  ✗ {norm}: not found in local ChEMBL cache → skip")
+            unmatched.append(norm)
+            continue
+
+        row = chembl_lookup[norm]
+        chembl_id = row["molecule_chembl_id"]
+        smiles = row["smiles"]
+        chembl_name = row["name"]
+
+        print(f"  → New drug: {norm} | chembl={chembl_id}")
+
+        # Validate SMILES
+        mol0 = Chem.MolFromSmiles(smiles)
+        if mol0 is None:
+            print("     ✗ Invalid SMILES → skip")
+            unmatched.append(norm)
+            continue
+
+        # Reject molecules that are too large
+        if mol0.GetNumAtoms() > 120:
+            print("     ✗ Molecule too large → skip")
+            unmatched.append(norm)
+            continue
+
+        # Build or load conformer
+        mol, source = get_or_build_conformer(
+            normalized_name=norm,
+            chembl_id=chembl_id,
+            chembl_name=chembl_name,
+            smiles=smiles,
+        )
+
+        if mol:
+            print(f"     ✓ Conformer ready | from: {source}")
+            inserted_count += 1
+        else:
+            print("     ✗ Conformer generation failed → skip")
+            unmatched.append(norm)
+
+    return inserted_count, unmatched

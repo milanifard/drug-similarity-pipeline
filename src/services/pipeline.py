@@ -46,6 +46,28 @@ def compute_usr_similarity(ref_mol, ref_confs, t_mols, t_confs, names):
         best = 0.0
         for ref_fp in ref_fps:
             for cid in conf_ids:
+
+
+
+                if mol.GetNumAtoms() < 3:
+                    print(f"[WARN] Molecule '{name}' has too few atoms: {mol.GetNumAtoms()}")
+                    continue
+
+                if mol.GetNumConformers() == 0:
+                    print(f"[WARN] Molecule '{name}' has no conformer. Skipping.")
+                    continue
+
+                try:
+                    fp = np.array(list(rdMolDescriptors.GetUSRCAT(mol, confId=cid)))
+                except Exception as e:
+                    print(f"[ERROR] USRCAT failed for {name}: {e}")
+                    continue
+
+                if np.linalg.norm(fp) == 0:
+                    print(f"[WARN] USRCAT fingerprint zero norm for {name}")
+                    continue
+
+
                 fp = np.array(list(rdMolDescriptors.GetUSRCAT(mol, confId=cid)))
                 sim = float(np.dot(ref_fp, fp) /
                             (np.linalg.norm(ref_fp) * np.linalg.norm(fp)))

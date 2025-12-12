@@ -1,7 +1,7 @@
 # src/api/check_local_drugs.py
 
 from fastapi import APIRouter, UploadFile, File
-from services.name_normalizer import normalize_raw_names
+from services.drug_name_normalizer import normalize_raw_names
 from services.local_drug_service import load_local_drugs_from_excel
 from services.chembl_lookup_service import build_chembl_lookup
 from src.data_sources.chembl_client import get_local_approved_drugs

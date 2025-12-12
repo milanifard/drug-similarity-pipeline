@@ -1,12 +1,12 @@
-# api/similarity.py
+# src/api/similarity.py
 
 from fastapi import APIRouter, Query
 from rdkit import Chem
 import pandas as pd
 
 from src.services.chemdb_service import get_engine
-from data_sources import chembl_client
-from src.services.conformer_manager import get_or_build_conformer
+from src.data_sources import chembl_client
+from src.services.conformer_manager import build_query_conformer
 from src.services.pipeline import (
     compute_2d_similarity,
     compute_usr_similarity,
@@ -17,74 +17,116 @@ router = APIRouter(prefix="/similarity", tags=["similarity"])
 
 @router.get("/")
 def similarity_with_local_drugs(
-    drug: str = Query(...),
-    alpha: float = 0.7,
-    radius: int = 2,
-    nbits: int = 2048,
+    drug: str = Query(..., description="Query drug name"),
+    alpha: float = Query(0.7, ge=0.0, le=1.0),
+    radius: int = Query(2),
+    nbits: int = Query(2048),
 ):
     """
-    Computes similarity between the query drug and ALL local drugs stored in local_drugs.
+    Compute similarity between a query drug and ALL locally stored drugs.
+
+    Similarity = alpha * 3D_USRCAT + (1 - alpha) * 2D_Tanimoto
     """
 
-    # Step 1: resolve query drug via ChEMBL
+    # ------------------------------------------------------------
+    # STEP 1: Resolve query drug via ChEMBL (SMILES only)
+    # ------------------------------------------------------------
     ref_df = chembl_client.search_molecule(drug)
-    if len(ref_df) == 0:
-        return {"error": f"{drug} not found in ChEMBL"}
+    if ref_df.empty:
+        return {"error": f"Query drug '{drug}' not found in ChEMBL"}
 
-    row = ref_df.iloc[0]
-    ref_smiles = row["smiles"]
-    ref_chembl_id = row["chembl_id"]
+    ref_row = ref_df.iloc[0]
+    ref_smiles = ref_row["smiles"]
+    ref_chembl_id = ref_row["chembl_id"]
 
-    ref_mol, source = get_or_build_conformer(
-        normalized_name=f"_query_{drug.lower()}",
+    # ------------------------------------------------------------
+    # STEP 2: Build query conformer (NOT stored in DB)
+    # ------------------------------------------------------------
+    ref_mol = build_query_conformer(
         chembl_id=ref_chembl_id,
-        chembl_name=drug,
         smiles=ref_smiles,
-        store_in_db=False,
     )
 
-    if ref_mol is None:
-        return {"error": "Could not build/load conformer for query drug"}
+    if ref_mol is None or ref_mol.GetNumConformers() == 0:
+        return {"error": "Failed to build 3D conformer for query drug"}
 
     ref_conf_ids = [conf.GetId() for conf in ref_mol.GetConformers()]
 
-    # Step 2: Load local drugs
+    # ------------------------------------------------------------
+    # STEP 3: Load local drug dataset from DB
+    # ------------------------------------------------------------
     engine = get_engine()
     df = pd.read_sql(
-        "SELECT normalized_name, chembl_name, smiles, molblock FROM local_drugs",
+        """
+        SELECT
+            normalized_name,
+            chembl_name,
+            smiles,
+            molblock
+        FROM local_drugs
+        WHERE molblock IS NOT NULL
+        """,
         engine,
     )
+
+    if df.empty:
+        return {"error": "Local drug database is empty"}
 
     names = df["normalized_name"].tolist()
     smiles_list = df["smiles"].tolist()
     molblocks = df["molblock"].tolist()
 
-    # Step 3: Build RDKit mols
+    # ------------------------------------------------------------
+    # STEP 4: Build RDKit molecules from stored MolBlocks
+    # ------------------------------------------------------------
     target_mols = []
     target_conf_ids = []
 
     for block in molblocks:
         mol = Chem.MolFromMolBlock(block, removeHs=False)
-        if mol:
+        if mol and mol.GetNumConformers() > 0:
             target_mols.append(mol)
             target_conf_ids.append([conf.GetId() for conf in mol.GetConformers()])
         else:
             target_mols.append(None)
             target_conf_ids.append([])
 
-    # Step 4: compute similarities
-    df2d = compute_2d_similarity(ref_smiles, smiles_list, names, radius, nbits)
-    df3d = compute_usr_similarity(ref_mol, ref_conf_ids, target_mols, target_conf_ids, names)
+    # ------------------------------------------------------------
+    # STEP 5: Compute similarities
+    # ------------------------------------------------------------
+    df2d = compute_2d_similarity(
+        ref_smiles=ref_smiles,
+        smiles_list=smiles_list,
+        names=names,
+        radius=radius,
+        nbits=nbits,
+    )
 
-    merged = df2d.merge(df3d, on="name")
+    df3d = compute_usr_similarity(
+        ref_mol=ref_mol,
+        ref_conf_ids=ref_conf_ids,
+        target_mols=target_mols,
+        target_conf_ids=target_conf_ids,
+        names=names,
+    )
+
+    merged = df2d.merge(df3d, on="name", how="inner")
+
     merged["weighted_similarity"] = (
         alpha * merged["3D_similarity"]
-        + (1 - alpha) * merged["2D_similarity"]
+        + (1.0 - alpha) * merged["2D_similarity"]
     )
-    merged = merged.sort_values("weighted_similarity", ascending=False)
 
+    merged = merged.sort_values(
+        "weighted_similarity", ascending=False
+    ).reset_index(drop=True)
+
+    # ------------------------------------------------------------
+    # STEP 6: Return response
+    # ------------------------------------------------------------
     return {
         "query": drug,
+        "alpha": alpha,
         "count": len(merged),
         "results": merged.to_dict(orient="records"),
     }

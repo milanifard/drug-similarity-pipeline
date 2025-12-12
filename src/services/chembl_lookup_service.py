@@ -1,8 +1,7 @@
 # src/services/chembl_lookup_service.py
 
 from typing import Dict
-from src.services.local_drug_service import normalize_name, is_radiopharmaceutical, SHORT_WHITELIST
-from src.services.name_normalizer import is_banned_term
+from src.services.drug_name_normalizer import normalize_name, is_radiopharmaceutical, SHORT_WHITELIST, is_banned_term
 import pandas as pd
 
 
