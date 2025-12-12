@@ -1,0 +1,126 @@
+# -----------------------------------------
+# Python
+# -----------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Standard Python cache
+*.cache
+*.pytest_cache/
+*.mypy_cache/
+*.coverage
+coverage.xml
+coverage/
+htmlcov/
+
+# Jupyter (if used)
+.ipynb_checkpoints/
+
+# Compiled
+*.so
+
+# -----------------------------------------
+# Application-specific
+# -----------------------------------------
+# Local data files
+data/
+datasets/
+downloads/
+tmp/
+temp/
+logs/
+*.log
+
+# RDKit temp files
+*.mol
+*.sdf
+*.smi
+
+# Exported files
+export/
+output/
+results/
+
+# Excel uploads
+*.xlsx
+*.xls
+uploads/
+
+# Local database files (if SQLite ever used)
+*.db
+*.sqlite
+*.sqlite3
+
+# -----------------------------------------
+# FastAPI / Uvicorn
+# -----------------------------------------
+# Reload artifacts
+*.pid
+
+# -----------------------------------------
+# Docker
+# -----------------------------------------
+docker-data/
+docker-volume/
+docker/
+*.tar
+
+# Remove auto-generated container folders
+**/mariadb/*
+!mariadb/init.sql
+
+# Backup files
+*.bak
+*.old
+
+# -----------------------------------------
+# Distribution / Packaging
+# -----------------------------------------
+build/
+dist/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+MANIFEST
+
+# -----------------------------------------
+# IDE / Editor
+# -----------------------------------------
+# VS Code
+.vscode/
+.history/
+
+# PyCharm
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -----------------------------------------
+# Git
+# -----------------------------------------
+# Local merge backup files
+*.orig
+*.rej
+

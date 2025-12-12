@@ -1,0 +1,27 @@
+version: '3.9'
+
+services:
+  chemdb:
+    image: mariadb:11
+    container_name: chemdb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: chemdb
+      MYSQL_USER: chemuser
+      MYSQL_PASSWORD: chempass
+    ports:
+      - "3306:3306"
+    volumes:
+      - d:/chemdb_data:/var/lib/mysql
+
+  similarity_api:
+    build: .
+    container_name: drug-similarity-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - d:/db_cache:/db_cache
+    environment:
+      - PYTHONUNBUFFERED=1
