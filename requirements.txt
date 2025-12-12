@@ -1,0 +1,9 @@
+fastapi==0.115.*
+uvicorn[standard]==0.30.*
+pandas==2.2.*
+numpy==1.26.*
+chembl_webresource_client==0.10.8
+python-multipart
+openpyxl
+SQLAlchemy
+pymysql
