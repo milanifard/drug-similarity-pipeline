@@ -1,16 +1,20 @@
+# src/services/chembl_lookup_service.py
+
 from typing import Dict
 from src.services.local_drug_service import normalize_name, is_radiopharmaceutical, SHORT_WHITELIST
+from src.services.name_normalizer import is_banned_term
 import pandas as pd
 
 
 def build_chembl_lookup(df: pd.DataFrame) -> Dict[str, dict]:
     """
-    Build lookup table:
+    Build lookup mapping:
         normalized_name -> row from ChEMBL dataframe
 
-    Filtering:
-        - length <= 3 (unless whitelisted)
+    Conservative normalization:
         - skip radiopharmaceuticals
+        - skip very short names unless whitelisted
+        - skip banned non-drug categories
     """
 
     lookup = {}
@@ -25,7 +29,11 @@ def build_chembl_lookup(df: pd.DataFrame) -> Dict[str, dict]:
         for n in norm_list:
             if len(n) <= 3 and n not in SHORT_WHITELIST:
                 continue
+
             if is_radiopharmaceutical(n):
+                continue
+
+            if is_banned_term(n):
                 continue
 
             lookup[n] = row

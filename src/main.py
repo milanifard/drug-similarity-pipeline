@@ -3,16 +3,18 @@ from fastapi import FastAPI
 from api.import_local_drugs import router as import_router
 from api.similarity import router as similarity_router
 from api.sync_chembl import router as chembl_sync_router
-
+from api.check_local_drugs import router as check_router
 app = FastAPI(
     title="Drug Similarity API",
     version="2.0"
 )
 
 # Register routers
+app.include_router(check_router)
 app.include_router(import_router)
 app.include_router(similarity_router)
 app.include_router(chembl_sync_router)
+
 
 if __name__ == "__main__":
     import uvicorn
