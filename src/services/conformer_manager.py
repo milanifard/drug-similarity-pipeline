@@ -12,6 +12,15 @@ from src.services.pubchem_utils import load_pubchem_conformer_from_smiles
 
 
 # ============================================================
+# Excluded drugs (skip completely)
+# ============================================================
+
+EXCLUDED_DRUGS = {
+    "buprenorphine", "ganirelix", "sirolimus", "vancomycin", "vinblastine"  # example: problematic molecule
+}
+
+
+# ============================================================
 # Core utilities (NO DB, NO POLICY)
 # ============================================================
 
@@ -23,22 +32,24 @@ def mol_from_molblock(block: str) -> Optional[Chem.Mol]:
 
 
 def mol_to_molblock(mol: Chem.Mol) -> str:
-    """Convert RDKit Mol to V2000 MolBlock."""
-    return Chem.MolToMolBlock(mol, forceV3000=False)
+    """Convert RDKit Mol to V3000 MolBlock."""
+    return Chem.MolToMolBlock(mol, forceV3000=True)
+
+
+def validate_molblock(block: str) -> bool:
+    """Return True if molblock can be read back correctly."""
+    try:
+        mol = Chem.MolFromMolBlock(block, removeHs=False)
+        return bool(mol and mol.GetNumAtoms() > 0)
+    except Exception:
+        return False
 
 
 def build_conformer_from_smiles(
     smiles: str,
     num_confs: int,
 ) -> Optional[Chem.Mol]:
-    """
-    Build 3D conformers using RDKit ETKDG.
-
-    This function:
-      - does NOT touch DB
-      - does NOT decide policy
-      - only builds conformers
-    """
+    """Build 3D conformers using RDKit ETKDG."""
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
@@ -61,7 +72,6 @@ def build_conformer_from_smiles(
     if not conf_ids:
         return None
 
-    # Optimize all conformers
     AllChem.UFFOptimizeMoleculeConfs(mol, maxIters=600)
     return mol
 
@@ -71,10 +81,7 @@ def build_conformer_from_smiles(
 # ============================================================
 
 def try_pubchem_conformer(smiles: str) -> Optional[Chem.Mol]:
-    """
-    Try to load a bioactive 3D conformer from PubChem.
-    Returns Mol if available, otherwise None.
-    """
+    """Try PubChem conformer and optimize."""
     mol = load_pubchem_conformer_from_smiles(smiles)
     if mol and mol.GetNumConformers() > 0:
         AllChem.UFFOptimizeMoleculeConfs(mol, maxIters=600)
@@ -87,22 +94,12 @@ def try_pubchem_conformer(smiles: str) -> Optional[Chem.Mol]:
 # ============================================================
 
 def build_query_conformer(smiles: str) -> Optional[Chem.Mol]:
-    """
-    Build 3D conformer for QUERY molecule.
+    """Build conformer for query drug (not persisted)."""
 
-    Priority:
-      1) PubChem bioactive conformer
-      2) RDKit ETKDG (multiple conformers)
-
-    This function NEVER writes to DB.
-    """
-
-    # 1) PubChem
     mol = try_pubchem_conformer(smiles)
     if mol:
         return mol
 
-    # 2) RDKit fallback (higher accuracy)
     return build_conformer_from_smiles(
         smiles=smiles,
         num_confs=30,
@@ -120,18 +117,21 @@ def get_or_build_local_conformer(
     smiles: str,
 ) -> Tuple[Optional[Chem.Mol], Optional[str]]:
     """
-    Load or build conformer for LOCAL drug.
-
     Priority:
-      1) Load from local DB
-      2) PubChem bioactive conformer
-      3) RDKit ETKDG fallback
-
-    The result IS stored in local_drugs table.
+      1) Load from DB
+      2) PubChem
+      3) RDKit
     """
 
     # --------------------------------------------------------
-    # 1) Load from DB
+    # EXCLUDE list
+    # --------------------------------------------------------
+    if normalized_name in EXCLUDED_DRUGS:
+        print(f"  ✗ {normalized_name}: excluded → skip completely")
+        return None, None
+
+    # --------------------------------------------------------
+    # Load from DB
     # --------------------------------------------------------
     row = get_local_drug_by_normalized_name(normalized_name)
     if row and row.get("molblock"):
@@ -140,13 +140,13 @@ def get_or_build_local_conformer(
             return mol, row.get("conformer_source")
 
     # --------------------------------------------------------
-    # 2) Try PubChem
+    # Try PubChem
     # --------------------------------------------------------
     mol = try_pubchem_conformer(smiles)
     source = "pubchem"
 
     # --------------------------------------------------------
-    # 3) RDKit fallback
+    # RDKit fallback
     # --------------------------------------------------------
     if not mol:
         mol = build_conformer_from_smiles(
@@ -156,9 +156,17 @@ def get_or_build_local_conformer(
         source = "rdkit"
 
     # --------------------------------------------------------
-    # 4) Persist if successful
+    # Validate before saving
     # --------------------------------------------------------
     if mol:
+        block = mol_to_molblock(mol)
+
+        # Test V3000 block validity
+        if not validate_molblock(block):
+            print(f"  ✗ Invalid MolBlock for {normalized_name} → skip")
+            return None, None
+
+        # Persist
         bulk_upsert_local_drugs([{
             "normalized_name": normalized_name,
             "local_name": normalized_name,
@@ -166,8 +174,9 @@ def get_or_build_local_conformer(
             "molecule_chembl_id": chembl_id,
             "smiles": smiles,
             "conformer_source": source,
-            "molblock": mol_to_molblock(mol),
+            "molblock": block,
         }])
+
         return mol, source
 
     return None, None
