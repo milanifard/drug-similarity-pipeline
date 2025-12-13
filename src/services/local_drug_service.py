@@ -2,11 +2,9 @@
 
 import io
 from typing import Dict, List, Tuple
-
 import pandas as pd
 from rdkit import Chem
-
-from src.services.conformer_manager import get_or_build_conformer
+from src.services.conformer_manager import get_or_build_local_conformer
 from src.services.chemdb_service import get_local_drug_by_normalized_name
 
 
@@ -81,7 +79,7 @@ def process_local_drugs(
             continue
 
         # Build or load conformer
-        mol, source = get_or_build_conformer(
+        mol, source = get_or_build_local_conformer(
             normalized_name=norm,
             chembl_id=chembl_id,
             chembl_name=chembl_name,
