@@ -6,7 +6,7 @@ import pandas as pd
 from rdkit import Chem
 from src.services.conformer_manager import get_or_build_local_conformer
 from src.services.chemdb_service import get_local_drug_by_normalized_name
-
+from src.services.local_drug_import_log_service import log_import_event
 
 def load_local_drugs_from_excel(content: bytes) -> pd.DataFrame:
     """
@@ -51,10 +51,19 @@ def process_local_drugs(
         existing = get_local_drug_by_normalized_name(norm)
         if existing:
             print(f"  ✓ {norm}: already exists")
+            log_import_event(
+                normalized_name=norm,
+                status="ALREADY_EXISTS",
+            )
             continue
 
         if norm not in chembl_lookup:
             print(f"  ✗ {norm}: not found in local ChEMBL cache → skip")
+            log_import_event(
+                normalized_name=norm,
+                status="NOT_IN_CHEMBL",
+                message="Not found in local ChEMBL cache",
+            )
             unmatched.append(norm)
             continue
 
@@ -69,12 +78,30 @@ def process_local_drugs(
         mol0 = Chem.MolFromSmiles(smiles)
         if mol0 is None:
             print("     ✗ Invalid SMILES → skip")
+            log_import_event(
+                normalized_name=norm,
+                status="INVALID_SMILES",
+                chembl_id=chembl_id,
+                chembl_name=chembl_name,
+                smiles=smiles,
+                message="RDKit MolFromSmiles failed",
+            )
             unmatched.append(norm)
             continue
 
         # Reject molecules that are too large
-        if mol0.GetNumAtoms() > 120:
+        num_atoms = mol0.GetNumAtoms()
+        if num_atoms > 120:
             print("     ✗ Molecule too large → skip")
+            log_import_event(
+                normalized_name=norm,
+                status="TOO_LARGE",
+                chembl_id=chembl_id,
+                chembl_name=chembl_name,
+                smiles=smiles,
+                num_atoms=num_atoms,
+                message="Atom count > 120",
+            )
             unmatched.append(norm)
             continue
 
@@ -91,6 +118,15 @@ def process_local_drugs(
             inserted_count += 1
         else:
             print("     ✗ Conformer generation failed → skip")
+            log_import_event(
+                normalized_name=norm,
+                status="CONFORMER_FAILED",
+                chembl_id=chembl_id,
+                chembl_name=chembl_name,
+                smiles=smiles,
+                num_atoms=num_atoms,
+                message="Conformer build or validation failed",
+            )
             unmatched.append(norm)
 
     return inserted_count, unmatched

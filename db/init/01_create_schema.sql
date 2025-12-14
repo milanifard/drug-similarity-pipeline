@@ -29,3 +29,30 @@ CREATE TABLE chembl_sync_state (
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+
+CREATE TABLE local_drug_import_log (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    normalized_name VARCHAR(255) NOT NULL,
+    raw_name VARCHAR(255) NULL,
+
+    chembl_id VARCHAR(50) NULL,
+    chembl_name VARCHAR(255) NULL,
+    smiles TEXT NULL,
+
+    status ENUM(
+        'ALREADY_EXISTS',
+        'NOT_IN_CHEMBL',
+        'INVALID_SMILES',
+        'TOO_LARGE',
+        'CONFORMER_FAILED',
+        'EXCLUDED'
+    ) NOT NULL,
+
+    message TEXT NULL,
+
+    num_atoms INT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
