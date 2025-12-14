@@ -7,6 +7,7 @@ from rdkit import Chem
 from src.services.conformer_manager import get_or_build_local_conformer
 from src.services.chemdb_service import get_local_drug_by_normalized_name
 from src.services.local_drug_import_log_service import log_import_event
+from src.services.chembl_not_found_explainer import explain_not_in_chembl
 
 def load_local_drugs_from_excel(content: bytes) -> pd.DataFrame:
     """
@@ -58,11 +59,12 @@ def process_local_drugs(
             continue
 
         if norm not in chembl_lookup:
+            reason = explain_not_in_chembl(norm)
             print(f"  ✗ {norm}: not found in local ChEMBL cache → skip")
             log_import_event(
                 normalized_name=norm,
                 status="NOT_IN_CHEMBL",
-                message="Not found in local ChEMBL cache",
+                message=reason,
             )
             unmatched.append(norm)
             continue

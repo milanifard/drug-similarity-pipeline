@@ -12,6 +12,9 @@ def log_import_event(
     num_atoms: int | None = None,
     message: str | None = None,
 ):
+    """
+    Insert a log record only if (normalized_name, status) does not already exist.
+    """
     engine = get_engine()
 
     query = text("""
@@ -21,6 +24,8 @@ def log_import_event(
         VALUES
         (:normalized_name, :raw_name, :chembl_id, :chembl_name, :smiles,
          :status, :message, :num_atoms)
+        ON DUPLICATE KEY UPDATE
+            message = VALUES(message)
     """)
 
     with engine.begin() as conn:
