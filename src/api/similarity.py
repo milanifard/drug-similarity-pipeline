@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from src.services.similarity_service import compute_similarity_with_local_drugs
+from src.services.auth_dependencies import require_login
 
 router = APIRouter(prefix="/similarity", tags=["similarity"])
 
@@ -11,6 +12,7 @@ def similarity_with_local_drugs(
     radius: int = Query(3),
     nbits: int = Query(4096),
     threshold: float = Query(0.7, ge=0.0, le=1.0),
+    user=Depends(require_login)
 ):
     try:
         df = compute_similarity_with_local_drugs(

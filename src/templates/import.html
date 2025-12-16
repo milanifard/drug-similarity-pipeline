@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Import Local Drugs{% endblock %}
+
+{% block extra_css %}
+<style>
+    .row {
+        margin-bottom: 15px;
+    }
+
+    input[type="file"] {
+        padding: 6px;
+    }
+
+    button {
+        padding: 10px 18px;
+        background: #2c7be5;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .spinner-overlay {
+        display: none;
+        margin-top: 25px;
+        text-align: center;
+    }
+
+    .spinner {
+        width: 42px;
+        height: 42px;
+        border: 4px solid #ddd;
+        border-top: 4px solid #2c7be5;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px auto;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .result-box {
+        display: none;
+        margin-top: 30px;
+        padding: 20px;
+        background: #f7f9fc;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+    }
+
+    .result-grid {
+        display: flex;
+        gap: 30px;
+        margin-top: 10px;
+    }
+
+    .result-card {
+        flex: 1;
+        background: white;
+        padding: 18px;
+        border-radius: 6px;
+        text-align: center;
+        border: 1px solid #e0e0e0;
+    }
+
+    .result-card h2 {
+        margin: 0;
+        font-size: 28px;
+        color: #2c7be5;
+    }
+
+    .result-card p {
+        margin: 6px 0 0;
+        color: #555;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>🧪 Import Local Drug List</h1>
+
+<p>
+    Upload an Excel file containing local drug names.
+    Approved drugs will be matched against the local ChEMBL cache
+    and conformers will be generated when possible.
+</p>
+
+<div class="row">
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+</div>
+
+<button id="importBtn" onclick="runImport()">Start Import</button>
+
+<!-- Spinner -->
+<div id="spinner" class="spinner-overlay">
+    <div class="spinner"></div>
+    <div>Importing drugs, this may take several minutes...</div>
+</div>
+
+<!-- Result summary -->
+<div id="resultBox" class="result-box">
+    <h3>Import Summary</h3>
+
+    <div class="result-grid">
+        <div class="result-card">
+            <h2 id="processedNum">0</h2>
+            <p>Processed</p>
+        </div>
+
+        <div class="result-card">
+            <h2 id="insertedNum">0</h2>
+            <p>Inserted</p>
+        </div>
+
+        <div class="result-card">
+            <h2 id="unmatchedNum">0</h2>
+            <p>Unmatched</p>
+        </div>
+    </div>
+</div>
+
+<script>
+async function runImport() {
+    const fileInput = document.getElementById("fileInput");
+    const btn = document.getElementById("importBtn");
+    const spinner = document.getElementById("spinner");
+    const resultBox = document.getElementById("resultBox");
+
+    if (!fileInput.files.length) {
+        alert("Please select an Excel file first.");
+        return;
+    }
+
+    // UI state: loading
+    btn.disabled = true;
+    spinner.style.display = "block";
+    resultBox.style.display = "none";
+
+    const fd = new FormData();
+    fd.append("file", fileInput.files[0]);
+
+    try {
+        const res = await fetch("/import/local_drugs", {
+            method: "POST",
+            body: fd
+        });
+
+        const data = await res.json();
+
+        document.getElementById("processedNum").innerText = data.processed;
+        document.getElementById("insertedNum").innerText = data.inserted;
+        document.getElementById("unmatchedNum").innerText = data.unmatched;
+
+        resultBox.style.display = "block";
+
+    } catch (err) {
+        alert("Import failed. Check server logs.");
+        console.error(err);
+    } finally {
+        spinner.style.display = "none";
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

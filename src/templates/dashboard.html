@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1>Welcome {{ user.username }}</h1>
+
+<p>
+    Drug Similarity Research Platform
+</p>
+
+<div style="display:flex; gap:20px; margin-top:20px;">
+    <div style="flex:1; background:#eef3fb; padding:20px; border-radius:6px;">
+        <h2>🔍 Similarity Search</h2>
+        <p>Find structurally similar drugs.</p>
+        <a href="/similarity-ui">Go to Similarity</a>
+    </div>
+
+    <div style="flex:1; background:#eef3fb; padding:20px; border-radius:6px;">
+        <h2>🧪 Import Local Drugs</h2>
+        <p>Upload Excel drug list.</p>
+        <a href="/import">Import Drugs</a>
+    </div>
+</div>
+{% endblock %}

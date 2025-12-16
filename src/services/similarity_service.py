@@ -161,5 +161,8 @@ def compute_similarity_with_local_drugs(
         "weighted_similarity", ascending=False
     ).reset_index(drop=True)
 
+    cols_to_round = ["2D_similarity", "3D_similarity", "weighted_similarity"]
+    merged[cols_to_round] = merged[cols_to_round].round(3)
+
     return merged
 

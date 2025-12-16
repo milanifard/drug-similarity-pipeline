@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Similarity Search{% endblock %}
+
+{% block extra_css %}
+<style>
+    .row {
+        margin-bottom: 12px;
+    }
+    label {
+        display: inline-block;
+        width: 180px;
+    }
+    input {
+        padding: 6px;
+        width: 220px;
+    }
+    .spinner-overlay {
+        display: none;
+        margin-top: 20px;
+        text-align: center;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #ddd;
+        border-top: 4px solid #2c7be5;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px auto;
+    }
+table.similarity-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 25px;
+        font-size: 14px;
+    }
+
+    table.similarity-table th {
+        background: #f0f3f8;
+        color: #333;
+        font-weight: bold;
+        padding: 10px;
+        border-bottom: 2px solid #ccc;
+    }
+    table.similarity-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    table.similarity-table tbody tr:nth-child(even) {
+        background: #fafafa;
+    }
+
+    table.similarity-table tbody tr:hover {
+        background: #eef4ff;
+    }
+
+    .rank-col {
+        width: 60px;
+        font-weight: bold;
+        color: #555;
+    }
+
+    .num {
+        font-family: monospace;
+    }
+
+    .weighted {
+        font-weight: bold;
+        color: #2c7be5;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+
+{% endblock %}
+
+{% block content %}
+<h1>🔍 Similarity Search</h1>
+
+<div style="margin-bottom:15px;">
+    <a href="/dashboard">← Back to Dashboard</a>
+</div>
+
+<div class="row">
+    <label>Drug name:</label>
+    <input type="text" id="drug" placeholder="e.g. Memantine">
+</div>
+
+<div class="row">
+    <label>Alpha:</label>
+    <input type="number" id="alpha" step="0.1" value="0.7">
+</div>
+
+<div class="row">
+    <label>Threshold:</label>
+    <input type="number" id="threshold" step="0.1" value="0.5">
+</div>
+
+<div class="row">
+    <label>Radius:</label>
+    <input type="number" id="radius" value="3">
+</div>
+
+<div class="row">
+    <label>nBits:</label>
+    <input type="number" id="nbits" value="4096">
+</div>
+
+<button id='runBtn' onclick="runSimilarity()">Run Similarity</button>
+<div id="spinner" class="spinner-overlay">
+    <div class="spinner"></div>
+    <div>Computing similarity, please wait...</div>
+</div>
+<table id="resultTable" class="similarity-table" style="display:none;">
+    <thead>
+        <tr>
+            <th class="rank-col">#</th>
+            <th>Drug</th>
+            <th>2D</th>
+            <th>3D</th>
+            <th>Weighted</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<script>
+async function runSimilarity() {
+    const runBtn = document.getElementById("runBtn");
+    const spinner = document.getElementById("spinner");
+    const table = document.getElementById("resultTable");
+    const tbody = table.querySelector("tbody");
+
+    // UI state: loading
+    runBtn.disabled = true;
+    spinner.style.display = "block";
+    table.style.display = "none";
+    tbody.innerHTML = "";
+
+    try {
+        const fd = new FormData();
+        fd.append("drug", drug.value);
+        fd.append("alpha", alpha.value);
+        fd.append("threshold", threshold.value);
+        fd.append("radius", radius.value);
+        fd.append("nbits", nbits.value);
+
+        const res = await fetch("/similarity-ui/run", {
+            method: "POST",
+            body: fd
+        });
+
+        const data = await res.json();
+
+        data.results.forEach((r, idx) => {
+            tbody.innerHTML += `
+                <tr>
+                    <td class="rank-col">${idx + 1}</td>
+                    <td>${r.name}</td>
+                    <td class="num">${r["2D_similarity"].toFixed(3)}</td>
+                    <td class="num">${r["3D_similarity"].toFixed(3)}</td>
+                    <td class="num weighted">${r["weighted_similarity"].toFixed(3)}</td>
+                </tr>
+            `;
+        });
+
+        table.style.display = "table";
+
+    } catch (err) {
+        alert("Error while computing similarity");
+        console.error(err);
+    } finally {
+        // UI state: done
+        spinner.style.display = "none";
+        runBtn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

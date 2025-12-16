@@ -7,3 +7,5 @@ python-multipart
 openpyxl
 SQLAlchemy
 pymysql
+passlib[bcrypt]
+jinja2>=3.1

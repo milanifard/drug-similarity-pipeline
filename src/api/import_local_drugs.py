@@ -47,5 +47,5 @@ async def import_local_drugs(
     return {
         "processed": len(all_norms),
         "inserted": inserted_count,
-        "unmatched": unmatched,
+        "unmatched": len(unmatched),
     }
