@@ -30,6 +30,32 @@
             padding: 25px;
             border-radius: 8px;
         }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #eef3fb;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c7be5;
+        }
+
     </style>
 
     {% block extra_css %}{% endblock %}
@@ -42,6 +68,7 @@
         <a href="/dashboard">Dashboard</a>
         <a href="/similarity-ui">Similarity</a>
         <a href="/import">Import</a>
+        <a href="/sync-chembl">Sync ChEMBL</a>
     </div>
     <div>
         {{ user.username }} |

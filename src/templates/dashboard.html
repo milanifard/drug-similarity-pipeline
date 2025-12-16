@@ -3,23 +3,95 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<h1>Welcome {{ user.username }}</h1>
+<h1>📊 System Dashboard</h1>
 
-<p>
-    Drug Similarity Research Platform
-</p>
-
-<div style="display:flex; gap:20px; margin-top:20px;">
-    <div style="flex:1; background:#eef3fb; padding:20px; border-radius:6px;">
-        <h2>🔍 Similarity Search</h2>
-        <p>Find structurally similar drugs.</p>
-        <a href="/similarity-ui">Go to Similarity</a>
+<!-- ================= Summary Cards ================= -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <h3>Local ChEMBL Drugs</h3>
+        <div class="stat-value" id="chemblCount">–</div>
     </div>
 
-    <div style="flex:1; background:#eef3fb; padding:20px; border-radius:6px;">
-        <h2>🧪 Import Local Drugs</h2>
-        <p>Upload Excel drug list.</p>
-        <a href="/import">Import Drugs</a>
+    <div class="stat-card">
+        <h3>Imported Drugs</h3>
+        <div class="stat-value" id="importedCount">–</div>
+    </div>
+
+    <div class="stat-card">
+        <h3>Failed Imports</h3>
+        <div class="stat-value" id="failedCount">–</div>
     </div>
 </div>
+
+<!-- ================= Import Status Table ================= -->
+<h2 style="margin-top:40px;">📦 Import Status</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Status</th>
+            <th>Count</th>
+        </tr>
+    </thead>
+    <tbody id="statusTable"></tbody>
+</table>
+
+<!-- ================= NOT IN CHEMBL Reasons ================= -->
+<h2 style="margin-top:40px;">❌ Not in ChEMBL – Reasons</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Reason</th>
+            <th>Count</th>
+        </tr>
+    </thead>
+    <tbody id="reasonTable"></tbody>
+</table>
+
+<script>
+async function loadSystemStats() {
+    const res = await fetch("/system/stats");
+    const data = await res.json();
+
+    // -------- Summary Cards --------
+    document.getElementById("chemblCount").innerText = data.chembl_local_count;
+
+    let imported = 0;
+    let failed = 0;
+
+    const statusTbody = document.getElementById("statusTable");
+    statusTbody.innerHTML = "";
+
+    data.local_import_status.forEach(r => {
+        statusTbody.innerHTML += `
+            <tr>
+                <td>${r.status}</td>
+                <td>${r.count}</td>
+            </tr>
+        `;
+
+        if (r.status === "IMPORTED") imported += r.count;
+        if (r.status !== "IMPORTED") failed += r.count;
+    });
+
+    document.getElementById("importedCount").innerText = imported;
+    document.getElementById("failedCount").innerText = failed;
+
+    // -------- Reasons Table --------
+    const reasonTbody = document.getElementById("reasonTable");
+    reasonTbody.innerHTML = "";
+
+    data.not_in_chembl_reasons.forEach(r => {
+        reasonTbody.innerHTML += `
+            <tr>
+                <td>${r.message}</td>
+                <td>${r.count}</td>
+            </tr>
+        `;
+    });
+}
+
+loadSystemStats();
+</script>
 {% endblock %}

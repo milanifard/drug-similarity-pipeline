@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}ChEMBL Sync{% endblock %}
+
+{% block content %}
+<h1>🔄 Sync ChEMBL Data</h1>
+
+<p style="max-width:800px;">
+This operation synchronizes the local ChEMBL cache with the official ChEMBL source.
+It may take several minutes depending on network and dataset size.
+</p>
+
+<button id="syncBtn" onclick="runSync()">Start Sync</button>
+
+<!-- Spinner -->
+<div id="spinner" class="spinner-overlay" style="display:none;">
+    <div class="spinner"></div>
+    <div>Synchronizing with ChEMBL, please wait…</div>
+</div>
+
+<!-- Result -->
+<div id="resultBox" style="display:none; margin-top:25px;">
+    <h3>✅ Sync Completed</h3>
+    <ul>
+        <li><b>Total processed:</b> <span id="processed"></span></li>
+        <li><b>Inserted:</b> <span id="inserted"></span></li>
+        <li><b>Updated:</b> <span id="updated"></span></li>
+    </ul>
+</div>
+
+<script>
+async function runSync() {
+    const btn = document.getElementById("syncBtn");
+    const spinner = document.getElementById("spinner");
+    const resultBox = document.getElementById("resultBox");
+
+    btn.disabled = true;
+    spinner.style.display = "block";
+    resultBox.style.display = "none";
+
+    try {
+        const res = await fetch("/sync/chembl", {
+            method: "POST"
+        });
+
+        if (!res.ok) {
+            throw new Error("Sync failed");
+        }
+
+        const data = await res.json();
+
+        document.getElementById("processed").innerText = data.processed ?? "-";
+        document.getElementById("inserted").innerText = data.inserted ?? "-";
+        document.getElementById("updated").innerText = data.updated ?? "-";
+
+        resultBox.style.display = "block";
+
+    } catch (err) {
+        alert("Error during ChEMBL sync");
+        console.error(err);
+    } finally {
+        spinner.style.display = "none";
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}
