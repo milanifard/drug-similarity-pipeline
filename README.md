@@ -7,232 +7,160 @@
 
 ---
 
-Drug Similarity Pipeline
+# Drug Similarity Pipeline  
+**Chemical Similarity with Biological Context (ChEMBL + Reactome)**
 
-Drug Similarity Pipeline is an open-source system for:
+An open-source backend pipeline for **drug similarity analysis enriched with biological pathway information**.
 
-Normalizing drug names from national market lists (Excel files)
+This project goes beyond pure chemical similarity by integrating **targets, proteins, and curated biological pathways**, enabling more interpretable and biologically meaningful similarity results.
 
-Mapping normalized names to approved molecules in ChEMBL
+---
 
-Extracting canonical SMILES
+## Motivation
 
-Building or fetching 3D conformers (PubChem → RDKit fallback)
+Most drug similarity tools focus solely on molecular structure:
 
-Storing all results in a MariaDB database
+> *“These two compounds look similar.”*
 
-Performing similarity search using combined 2D (Tanimoto) and 3D (USRCAT) scores
+However, in real-world drug analysis, a more relevant question is:
 
-The entire project is fully Dockerized and runs through docker-compose.
+> **Do similar drugs also act on similar biological pathways?**
 
-Features
+This project addresses that gap by combining:
+- molecular similarity (2D & 3D)
+- drug–target relationships
+- protein-level mappings
+- pathway-level biological context
 
-Drug name normalization:
+---
 
-Remove salts, dosage forms, parentheses, and noise tokens
+## Conceptual Model
 
-Split combination drugs (A + B)
+The core biological chain implemented in this pipeline is:
+Drug → Target → Protein (UniProt) → Pathway (Reactome)
 
-Lowercase normalization
 
-Remove radiopharmaceuticals
+This allows similarity results to be interpreted not only chemically, but also **biologically**, which is especially useful for:
+- drug mechanism analysis
+- hypothesis generation
+- exploratory drug repurposing studies
 
-Matching normalized drug names to approved ChEMBL molecules
+---
 
-Extracting SMILES and building 3D conformers:
+## Key Features
 
-Fetch PubChem bioactive conformer if available
+- **Approved drug ingestion** from ChEMBL (local cache)
+- **Target and protein mapping** (many-to-many relationships)
+- **Reactome pathway integration** via UniProt IDs
+- **2D and 3D molecular similarity computation**
+- **Pathway-aware drug profiling**
+- Fully **API-driven backend**
+- Designed for **local, reproducible data storage**
 
-Otherwise generate ETKDG 3D conformers using RDKit
+---
 
-Storing results in a local MariaDB table (drug_molecules or your preferred name)
+## Architecture Overview
 
-normalized_name
+The system is organized as a set of decoupled services:
 
-original_name
+- **ChEMBL Drug Sync**
+  - Approved drugs
+  - Canonical SMILES
 
-chembl_name
+- **Target & Protein Sync**
+  - Drug ↔ Target
+  - Target ↔ Protein (UniProt)
 
-chembl_id
+- **Reactome Pathway Sync**
+  - Protein ↔ Pathway
 
-smiles
+- **Similarity Engine**
+  - Chemical similarity (2D/3D)
+  - Biological context enrichment
 
-molblock_3d (V2000 MolBlock)
+Each synchronization step is:
+- idempotent
+- resumable
+- independently executable
 
-conformer_source (pubchem or rdkit)
+This design allows robust operation even when external APIs are temporarily unavailable.
 
-Similarity search API endpoint using only the locally stored drug dataset
+---
 
-High-Level Architecture
+## Intended Use Cases
 
-Components:
+- Backend service for drug similarity APIs
+- Research pipelines requiring biological interpretation
+- Educational or exploratory bioinformatics projects
+- Foundation for extending toward:
+  - pathway similarity scoring
+  - mechanism-of-action clustering
+  - drug repurposing analysis
 
-FastAPI service (image: drug-similarity-api)
+> **Note:**  
+> This project focuses on data pipelines and APIs, not UI or visualization.
 
-Normalization, ChEMBL lookup, PubChem retrieval
+---
 
-Conformer generation
+## Technology Stack
 
-Similarity computation (2D + 3D)
+- **Python**
+- **FastAPI**
+- **SQLAlchemy**
+- **ChEMBL WebResource Client**
+- **Reactome Content Service**
+- **MariaDB / MySQL**
+- **Docker-ready architecture**
 
-MariaDB service (image: chemdb)
+The stack is intentionally simple and extensible.
 
-Stores normalized drug records and conformers
+---
 
-Communication occurs entirely through Docker’s internal network.
-Database access string is passed via the environment variable CHEMDB_URL.
+## Open Source & Extensibility
 
-Requirements
+This project is open source and designed to be extended.
 
-Docker
+Possible future extensions include:
+- KEGG or WikiPathways integration
+- UniProt annotation enrichment
+- Pathway-level similarity metrics
+- Disease or indication mapping
 
-docker-compose
+Contributions, feedback, and discussions are welcome.
 
-Internet access (required for ChEMBL and PubChem)
+---
 
-Running with Docker
+## Getting Started
 
-Clone the repository:
-git clone https://github.com/milanifard/drug-similarity-pipeline.git
-cd drug-similarity-pipeline
+Basic workflow:
 
+1. Sync approved drugs from ChEMBL
+2. Sync drug targets and protein mappings
+3. Sync Reactome pathways
+4. Run similarity queries enriched with pathway data
 
-    Check docker-compose.yml.
+Each step is exposed via a dedicated API endpoint.
 
-It should define:
+Refer to the source code for service-level details.
 
-    drug-similarity-api service
+---
 
-    chemdb MariaDB service
+## License
 
-    Environment variable such as:
+This project is released under an open-source license  
+(see LICENSE file for details).
 
-CHEMDB_URL=mysql+pymysql://chemuser:chempass@chemdb:3306/chemdb
+---
 
-    Start the system:
+## Author
 
-docker-compose up --build
+Developed by **Omid Milanifard**  
+with a focus on scientific software design, data engineering,  
+and biologically interpretable drug analysis.
 
-This will:
+---
 
-    Start MariaDB
+## Repository
 
-    Start the FastAPI service
+https://github.com/milanifard/drug-similarity-pipeline
 
-    Automatically run any SQL initialization scripts (if mounted under /docker-entrypoint-initdb.d)
-
-    API URL:
-
-http://localhost:8000
-
-Swagger UI:
-
-http://localhost:8000/docs
-
-Database Initialization
-
-Place schema files such as:
-
-db/init/01_create_schema.sql
-
-and mount them in docker-compose.yml under:
-
-/docker-entrypoint-initdb.d
-
-This ensures the required tables are created automatically on first run.
-
-To reset the database fully:
-
-docker-compose down -v
-docker-compose up --build
-
-API Endpoints
-1. Import and Normalize Drug List
-
-POST /import_drugs
-
-Input:
-
-    Excel file (containing a column of drug names)
-
-Internal workflow:
-    Load all drug names from the Excel file
-    Normalize names
-    Fetch approved ChEMBL molecules
-    Match normalized names to ChEMBL
-
-    For each new drug:
-        Retrieve SMILES
-        Fetch or generate 3D conformer
-        Store into database (drug_molecules)
-    Log progress in the API container console (processed, skipped, existing, etc.)
-
-Example output:
-
-{
-  "inserted": 350,
-  "exists": 120,
-  "skipped": 800
-}
-
-2. Similarity Search
-
-GET /similarity
-
-Parameters:
-
-    drug: reference drug name
-
-    alpha: weight for combining 2D vs 3D similarity scores
-
-Workflow:
-
-    Look up reference drug in ChEMBL
-
-    Retrieve or generate reference conformer
-
-    Load all target molecules from local database (drug_molecules)
-
-    Compute:
-
-        2D Tanimoto similarity
-
-        3D USRCAT similarity
-
-    Produce a ranked similarity list
-
-Example output:
-
-{
-  "query": "metformin",
-  "results": [
-    {
-      "name": "METFORMIN HYDROCHLORIDE",
-      "normalized_name": "metformin",
-      "chembl_id": "CHEMBL1431",
-      "similarity_2d": 0.87,
-      "similarity_3d": 0.79,
-      "weighted_similarity": 0.82
-    }
-  ]
-}
-
-Project Structure
-
-src/
-  api.py
-  pipeline.py
-  chemdb_service.py
-  drug_import_service.py
-  pubchem_utils.py
-  data_sources/
-    chembl_client.py
-
-docker-compose.yml
-Dockerfile
-requirements.txt
-
-License
-
-MIT License (or any license you prefer).
-Add a LICENSE file at the root of the project
