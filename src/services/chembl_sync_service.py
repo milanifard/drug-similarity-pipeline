@@ -1,12 +1,199 @@
 # src/service/chembl_sync_service.py
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Set
 from sqlalchemy import text
 from services.chemdb_service import get_engine
-from data_sources.chembl_client import fetch_approved_page
+from data_sources.chembl_client import fetch_approved_page, fetch_target_components, fetch_targets_for_drug
 
 
 PAGE_SIZE = 20   # ChEMBL returns ~20 records per page
+
+def sync_targets_batch(limit: int = 50) -> Dict[str, Any]:
+    """
+    Sync targets for a batch of local drugs.
+    """
+    drug_ids = get_local_drug_ids(limit=limit)
+
+    if not drug_ids:
+        return {
+            "status": "completed",
+            "message": "No drugs found to sync targets."
+        }
+
+    for chembl_id in drug_ids:
+        print(f"[TARGET-SYNC] {chembl_id}")
+        sync_drug_targets(chembl_id)
+
+    return {
+        "status": "ok",
+        "processed_drugs": len(drug_ids)
+    }
+
+
+def drug_targets_exist(molecule_chembl_id: str) -> bool:
+    engine = get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            SELECT 1
+            FROM drug_targets
+            WHERE molecule_chembl_id = :cid
+            LIMIT 1
+        """), {"cid": molecule_chembl_id}).fetchone()
+    return row is not None
+
+def target_proteins_exist(target_chembl_id: str) -> bool:
+    engine = get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            SELECT 1
+            FROM target_proteins
+            WHERE target_chembl_id = :tid
+            LIMIT 1
+        """), {"tid": target_chembl_id}).fetchone()
+    return row is not None
+
+
+def get_local_drug_ids(limit: int = 100) -> List[str]:
+    """
+    Get a batch of molecule_chembl_id that are already synced locally.
+    """
+    engine = get_engine()
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT molecule_chembl_id
+            FROM chembl_approved_drugs
+            ORDER BY molecule_chembl_id
+            LIMIT :limit
+        """), {"limit": limit}).fetchall()
+
+    return [r[0] for r in rows]
+
+def save_targets(targets: List[Dict[str, Any]]):
+    """
+    Insert targets into chembl_targets table.
+    """
+    if not targets:
+        return
+
+    engine = get_engine()
+    sql = text("""
+        INSERT IGNORE INTO chembl_targets
+            (target_chembl_id, target_name, organism, target_type)
+        VALUES
+            (:target_chembl_id, :target_name, :organism, :target_type)
+    """)
+
+    with engine.begin() as conn:
+        conn.execute(sql, targets)
+
+def save_drug_targets(molecule_chembl_id: str, target_ids: Set[str]):
+    """
+    Save mapping between drug and targets.
+    """
+    if not target_ids:
+        return
+
+    rows = [
+        {
+            "molecule_chembl_id": molecule_chembl_id,
+            "target_chembl_id": tid
+        }
+        for tid in target_ids
+    ]
+
+    engine = get_engine()
+    sql = text("""
+        INSERT IGNORE INTO drug_targets
+            (molecule_chembl_id, target_chembl_id)
+        VALUES
+            (:molecule_chembl_id, :target_chembl_id)
+    """)
+
+    with engine.begin() as conn:
+        conn.execute(sql, rows)
+
+def save_proteins(proteins: List[Dict[str, Any]]):
+    """
+    Insert proteins into proteins table.
+    """
+    if not proteins:
+        return
+
+    engine = get_engine()
+    sql = text("""
+        INSERT IGNORE INTO proteins
+            (uniprot_id, protein_name, gene_name, organism)
+        VALUES
+            (:uniprot_id, :protein_name, :gene_name, :organism)
+    """)
+
+    with engine.begin() as conn:
+        conn.execute(sql, proteins)
+
+def save_target_proteins(target_chembl_id: str, uniprot_ids: Set[str]):
+    """
+    Save mapping between target and proteins.
+    """
+    if not uniprot_ids:
+        return
+
+    rows = [
+        {
+            "target_chembl_id": target_chembl_id,
+            "uniprot_id": uid
+        }
+        for uid in uniprot_ids
+    ]
+
+    engine = get_engine()
+    sql = text("""
+        INSERT IGNORE INTO target_proteins
+            (target_chembl_id, uniprot_id)
+        VALUES
+            (:target_chembl_id, :uniprot_id)
+    """)
+
+    with engine.begin() as conn:
+        conn.execute(sql, rows)
+
+
+def sync_drug_targets(molecule_chembl_id: str):
+    """
+    Sync targets and proteins for a single drug.
+    """
+    if drug_targets_exist(molecule_chembl_id):
+            print(f"[SKIP] targets already synced for {molecule_chembl_id}")
+            return
+    
+    targets = fetch_targets_for_drug(molecule_chembl_id)
+
+    if not targets:
+        return
+
+    # ---- save targets ----
+    save_targets(targets)
+
+    target_ids = {t["target_chembl_id"] for t in targets}
+    save_drug_targets(molecule_chembl_id, target_ids)
+
+    # ---- for each target → proteins ----
+    for t in targets:
+        target_id = t["target_chembl_id"]
+
+        components = fetch_target_components(target_id)
+        if not components:
+            continue
+
+        save_proteins(components)
+
+        uniprot_ids = {
+            c["uniprot_id"]
+            for c in components
+            if c.get("uniprot_id")
+        }
+
+        save_target_proteins(target_id, uniprot_ids)
+
 
 
 def get_sync_state() -> Dict[str, Any]:

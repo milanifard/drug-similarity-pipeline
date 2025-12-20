@@ -71,3 +71,109 @@ VALUES (
   'admin',
   SHA2('admin123', 256)
 );
+
+CREATE TABLE chembl_targets (
+    target_chembl_id   VARCHAR(32) NOT NULL,
+    target_name        VARCHAR(255),
+    organism           VARCHAR(128),
+    target_type        VARCHAR(64),
+
+    PRIMARY KEY (target_chembl_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE proteins (
+    uniprot_id     VARCHAR(16) NOT NULL,
+    protein_name   VARCHAR(255),
+    gene_name      VARCHAR(64),
+    organism       VARCHAR(128),
+
+    PRIMARY KEY (uniprot_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE drug_targets (
+    molecule_chembl_id  VARCHAR(32) NOT NULL,
+    target_chembl_id    VARCHAR(32) NOT NULL,
+
+    PRIMARY KEY (molecule_chembl_id, target_chembl_id),
+
+    CONSTRAINT fk_dt_drug
+        FOREIGN KEY (molecule_chembl_id)
+        REFERENCES chembl_approved_drugs (molecule_chembl_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_dt_target
+        FOREIGN KEY (target_chembl_id)
+        REFERENCES chembl_targets (target_chembl_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE target_proteins (
+    target_chembl_id  VARCHAR(32) NOT NULL,
+    uniprot_id        VARCHAR(16) NOT NULL,
+
+    PRIMARY KEY (target_chembl_id, uniprot_id),
+
+    CONSTRAINT fk_tp_target
+        FOREIGN KEY (target_chembl_id)
+        REFERENCES chembl_targets (target_chembl_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_tp_protein
+        FOREIGN KEY (uniprot_id)
+        REFERENCES proteins (uniprot_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE reactome_pathways (
+    pathway_id        VARCHAR(32) NOT NULL,
+    pathway_name      VARCHAR(255) NOT NULL,
+    top_level_class   VARCHAR(128),
+    species           VARCHAR(64),
+
+    PRIMARY KEY (pathway_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE protein_pathways (
+    uniprot_id   VARCHAR(16) NOT NULL,
+    pathway_id   VARCHAR(32) NOT NULL,
+
+    PRIMARY KEY (uniprot_id, pathway_id),
+
+    CONSTRAINT fk_pp_protein
+        FOREIGN KEY (uniprot_id)
+        REFERENCES proteins (uniprot_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_pp_pathway
+        FOREIGN KEY (pathway_id)
+        REFERENCES reactome_pathways (pathway_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE drug_pathways (
+    molecule_chembl_id  VARCHAR(32) NOT NULL,
+    pathway_id          VARCHAR(32) NOT NULL,
+
+    PRIMARY KEY (molecule_chembl_id, pathway_id),
+
+    CONSTRAINT fk_dp_drug
+        FOREIGN KEY (molecule_chembl_id)
+        REFERENCES chembl_approved_drugs (molecule_chembl_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_dp_pathway
+        FOREIGN KEY (pathway_id)
+        REFERENCES reactome_pathways (pathway_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE INDEX idx_dt_target ON drug_targets (target_chembl_id);
+CREATE INDEX idx_tp_protein ON target_proteins (uniprot_id);
+CREATE INDEX idx_pp_pathway ON protein_pathways (pathway_id);
+CREATE INDEX idx_dp_pathway ON drug_pathways (pathway_id);

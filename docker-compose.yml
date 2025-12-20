@@ -25,3 +25,6 @@ services:
       - d:/db_cache:/db_cache
     environment:
       - PYTHONUNBUFFERED=1
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1

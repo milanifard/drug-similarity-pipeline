@@ -146,3 +146,77 @@ def get_local_approved_drugs(limit: int | None = None) -> pd.DataFrame:
         query += f" LIMIT {limit}"
 
     return pd.read_sql(query, engine)
+
+
+def fetch_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
+    """
+    Fetch targets associated with a given drug (molecule_chembl_id).
+    """
+
+    client = get_client()
+    activity = client.activity
+
+    try:
+        res = activity.filter(
+            molecule_chembl_id=molecule_chembl_id
+        ).only([
+            "target_chembl_id",
+            "target_pref_name",
+            "target_organism",
+            "target_type"
+        ])
+    except Exception as ex:
+        print(f"[CHEMBL ERROR] fetch_targets_for_drug({molecule_chembl_id}): {ex}")
+        return []
+
+    targets = {}
+    for r in res:
+        tid = r.get("target_chembl_id")
+        if not tid:
+            continue
+
+        targets[tid] = {
+            "target_chembl_id": tid,
+            "target_name": r.get("target_pref_name"),
+            "organism": r.get("target_organism"),
+            "target_type": r.get("target_type"),
+        }
+
+    # unique targets
+    return list(targets.values())
+
+
+def fetch_target_components(target_chembl_id: str) -> list[dict]:
+    """
+    Fetch protein components (UniProt) for a given target.
+    """
+
+    client = get_client()
+    target = client.target
+
+    try:
+        t = target.get(target_chembl_id)
+    except Exception as ex:
+        print(f"[CHEMBL ERROR] fetch_target_components({target_chembl_id}): {ex}")
+        return []
+
+    if not t:
+        return []
+
+    components = t.get("target_components") or []
+
+    proteins = []
+    for c in components:
+        acc = c.get("accession")
+        if not acc:
+            continue
+
+        proteins.append({
+            "uniprot_id": acc,
+            "protein_name": c.get("protein_name"),
+            "gene_name": c.get("gene_name"),
+            "organism": c.get("organism"),
+        })
+
+    return proteins
+
