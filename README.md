@@ -118,7 +118,8 @@ The stack is intentionally simple and extensible.
 
 ## Open Source & Extensibility
 
-This project is open source and designed to be extended.
+This project is licensed under the **MIT License**.  
+See the [LICENSE](LICENSE) file for details.
 
 Possible future extensions include:
 - KEGG or WikiPathways integration
