@@ -22,8 +22,8 @@ def sync_reactome_pathways(limit: int = 50):
 
 @router.post("/chembl/all")
 def sync_chembl_all(
-    max_drug_steps: int = 200,
-    target_batch_size: int = 50
+    max_drug_steps: int = 300,
+    target_batch_size: int = 2000
 ):
     """
     Orchestrates full ChEMBL sync:
@@ -46,8 +46,11 @@ def sync_chembl_all(
     target_result = sync_targets_batch(limit=target_batch_size)
 
     return {
-        "drugs": final_drug_result,
-        "targets": target_result
+        "status": "completed",
+        "summary": {
+            "drugs": final_drug_result,
+            "targets": target_result
+        }
     }
 
 

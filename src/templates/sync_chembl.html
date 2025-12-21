@@ -20,11 +20,11 @@ It may take several minutes depending on network and dataset size.
 
 <!-- Result -->
 <div id="resultBox" style="display:none; margin-top:25px;">
-    <h3>✅ Sync Completed</h3>
+<h3>✅ Sync Completed</h3>
     <ul>
-        <li><b>Total processed:</b> <span id="processed"></span></li>
-        <li><b>Inserted:</b> <span id="inserted"></span></li>
-        <li><b>Updated:</b> <span id="updated"></span></li>
+        <li><b>Drug sync status:</b> <span id="drugStatus"></span></li>
+        <li><b>Last drug offset:</b> <span id="drugOffset"></span></li>
+        <li><b>Targets processed:</b> <span id="targetProcessed"></span></li>
     </ul>
 </div>
 
@@ -39,19 +39,21 @@ async function runSync() {
     resultBox.style.display = "none";
 
     try {
-        const res = await fetch("/sync/chembl", {
-            method: "POST"
-        });
-
-        if (!res.ok) {
-            throw new Error("Sync failed");
-        }
+        const res = await fetch("/sync/chembl/all", { method: "POST" });
+        if (!res.ok) throw new Error("Sync failed");
 
         const data = await res.json();
 
-        document.getElementById("processed").innerText = data.processed ?? "-";
-        document.getElementById("inserted").innerText = data.inserted ?? "-";
-        document.getElementById("updated").innerText = data.updated ?? "-";
+        document.getElementById("drugStatus").innerText =
+            data.summary?.drugs?.status ?? "-";
+
+        document.getElementById("drugOffset").innerText =
+            data.summary?.drugs?.new_offset ??
+            data.summary?.drugs?.last_offset ??
+            "-";
+
+        document.getElementById("targetProcessed").innerText =
+            data.summary?.targets?.processed_drugs ?? "-";
 
         resultBox.style.display = "block";
 

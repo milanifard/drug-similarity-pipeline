@@ -18,9 +18,9 @@ def get_unsynced_uniprot_ids(limit: int = 100) -> List[str]:
         rows = conn.execute(text("""
             SELECT p.uniprot_id
             FROM proteins p
-            LEFT JOIN protein_pathways pp
-              ON p.uniprot_id = pp.uniprot_id
-            WHERE pp.uniprot_id IS NULL
+            LEFT JOIN protein_reactome_status prs
+            ON p.uniprot_id = prs.uniprot_id
+            WHERE prs.uniprot_id IS NULL
             LIMIT :limit
         """), {"limit": limit}).fetchall()
 
@@ -34,6 +34,11 @@ def fetch_reactome_pathways(uniprot_id: str) -> List[Dict[str, Any]]:
 
     try:
         resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+
+        if resp.status_code == 404:
+            # No pathways for this protein (valid case)
+            return []
+
         if resp.status_code != 200:
             print(f"[REACTOME ERROR] {uniprot_id} → HTTP {resp.status_code}")
             return []
@@ -93,10 +98,24 @@ def save_protein_pathways(uniprot_id: str, pathway_ids: List[str]):
     with engine.begin() as conn:
         conn.execute(sql, rows)
 
+def save_reactome_status(uniprot_id: str, has_pathway: bool):
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT IGNORE INTO protein_reactome_status
+                (uniprot_id, has_pathway)
+            VALUES
+                (:uid, :has_pathway)
+        """), {
+            "uid": uniprot_id,
+            "has_pathway": has_pathway
+        })
+
 def sync_protein_pathways(uniprot_id: str):
     pathways = fetch_reactome_pathways(uniprot_id)
 
     if not pathways:
+        save_reactome_status(uniprot_id, has_pathway=False)
         return
 
     save_pathways(pathways)
@@ -108,6 +127,7 @@ def sync_protein_pathways(uniprot_id: str):
     ]
 
     save_protein_pathways(uniprot_id, pathway_ids)
+    save_reactome_status(uniprot_id, has_pathway=True)
 
 def sync_reactome_batch(limit: int = 50) -> Dict[str, Any]:
     """

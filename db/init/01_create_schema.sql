@@ -172,6 +172,11 @@ CREATE TABLE drug_pathways (
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE protein_reactome_status (
+    uniprot_id     VARCHAR(16) PRIMARY KEY,
+    has_pathway    BOOLEAN NOT NULL,
+    checked_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE INDEX idx_dt_target ON drug_targets (target_chembl_id);
 CREATE INDEX idx_tp_protein ON target_proteins (uniprot_id);
