@@ -11,6 +11,7 @@ from src.web.similarity_ui import router as similarity_ui_router
 from src.web.import_ui import router as import_ui_router
 from src.api.system_stats import router as system_stats_router
 from src.web.chembl_sync import router as chembl_sync_ui_router
+from src.api.drug_pathways import router as drug_pathway_router
 
 app = FastAPI(
     title="Drug Similarity API",
@@ -27,6 +28,7 @@ app.add_middleware(
 # Register routers
 app.include_router(auth.router)
 app.include_router(dashboard.router)
+app.include_router(drug_pathway_router)
 app.include_router(system_stats_router)
 app.include_router(similarity_ui_router)
 app.include_router(import_ui_router)

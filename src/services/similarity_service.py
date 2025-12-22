@@ -99,6 +99,7 @@ def compute_similarity_with_local_drugs(
     df = pd.read_sql(
         """
         SELECT
+            molecule_chembl_id,
             normalized_name,
             smiles,
             molblock
@@ -107,12 +108,12 @@ def compute_similarity_with_local_drugs(
         """,
         engine,
     )
-
     df = df[df["normalized_name"] != query_norm]
 
     if df.empty:
         raise RuntimeError("Local drug database is empty")
-
+    
+    chembl_ids = df["molecule_chembl_id"].tolist()
     names = df["normalized_name"].tolist()
     smiles_list = df["smiles"].tolist()
     molblocks = df["molblock"].tolist()
@@ -152,6 +153,9 @@ def compute_similarity_with_local_drugs(
     )
 
     merged = df2d.merge(df3d, on="name", how="inner")
+    name_to_chembl = dict(zip(names, chembl_ids))
+    merged["chembl_id"] = merged["name"].map(name_to_chembl)
+
     merged["weighted_similarity"] = (
         alpha * merged["3D_similarity"]
         + (1.0 - alpha) * merged["2D_similarity"]
