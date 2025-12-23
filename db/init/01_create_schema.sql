@@ -178,6 +178,9 @@ CREATE TABLE protein_reactome_status (
     checked_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE local_drugs
+ADD COLUMN targets_synced TINYINT DEFAULT 0;
+
 CREATE INDEX idx_dt_target ON drug_targets (target_chembl_id);
 CREATE INDEX idx_tp_protein ON target_proteins (uniprot_id);
 CREATE INDEX idx_pp_pathway ON protein_pathways (pathway_id);
