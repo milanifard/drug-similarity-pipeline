@@ -45,7 +45,6 @@ def get_not_in_chembl_reasons():
         for row in rows
     ]
 
-
 def get_local_chembl_count():
     """
     Returns total number of locally cached approved ChEMBL drugs
@@ -58,3 +57,39 @@ def get_local_chembl_count():
         row = conn.execute(sql).first()
 
     return row.count if row else 0
+
+
+def get_target_sync_percentage():
+    engine = get_engine()
+
+    sql = text("""
+        SELECT 
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0
+                ELSE ROUND(SUM(targets_synced = 1) * 100.0 / COUNT(*))
+            END AS percentage
+        FROM local_drugs
+    """)
+
+    with engine.connect() as conn:
+        row = conn.execute(sql).first()
+
+    return int(row.percentage) if row and row.percentage is not None else 0
+
+
+def get_protein_with_pathway_percentage():
+    engine = get_engine()
+
+    sql = text("""
+        SELECT 
+            CASE 
+                WHEN COUNT(*) = 0 THEN 0
+                ELSE ROUND(SUM(has_pathway = 1) * 100.0 / COUNT(*))
+            END AS percentage
+        FROM protein_reactome_status
+    """)
+
+    with engine.connect() as conn:
+        row = conn.execute(sql).first()
+
+    return int(row.percentage) if row and row.percentage is not None else 0

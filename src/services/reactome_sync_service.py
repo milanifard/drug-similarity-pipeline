@@ -29,25 +29,36 @@ def get_unsynced_uniprot_ids(limit: int = 100) -> List[str]:
 def fetch_reactome_pathways(uniprot_id: str) -> List[Dict[str, Any]]:
     """
     Fetch Reactome pathways for a given UniProt ID.
+    Raises exception on network/server errors.
+    Returns empty list only if protein truly has no pathways.
     """
     url = f"{REACTOME_BASE_URL}/data/mapping/UniProt/{uniprot_id}/pathways"
 
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+    resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
 
-        if resp.status_code == 404:
-            # No pathways for this protein (valid case)
-            return []
-
-        if resp.status_code != 200:
-            print(f"[REACTOME ERROR] {uniprot_id} → HTTP {resp.status_code}")
-            return []
-
-        return resp.json()
-
-    except Exception as ex:
-        print(f"[REACTOME ERROR] {uniprot_id}: {ex}")
+    # ---- VALID NO DATA CASE ----
+    if resp.status_code == 404:
         return []
+
+    # ---- RATE LIMIT ----
+    if resp.status_code == 429:
+        raise requests.exceptions.RequestException(
+            f"Rate limited (429) for {uniprot_id}"
+        )
+
+    # ---- SERVER ERROR ----
+    if 500 <= resp.status_code < 600:
+        raise requests.exceptions.RequestException(
+            f"Server error {resp.status_code} for {uniprot_id}"
+        )
+
+    # ---- OTHER BAD STATUS ----
+    if resp.status_code != 200:
+        raise requests.exceptions.RequestException(
+            f"Unexpected status {resp.status_code} for {uniprot_id}"
+        )
+
+    return resp.json()
 
 
 def save_pathways(pathways: List[Dict[str, Any]]):
@@ -112,12 +123,18 @@ def save_reactome_status(uniprot_id: str, has_pathway: bool):
         })
 
 def sync_protein_pathways(uniprot_id: str):
-    pathways = fetch_reactome_pathways(uniprot_id)
-
-    if not pathways:
-        save_reactome_status(uniprot_id, has_pathway=False)
+    try:
+        pathways = fetch_reactome_pathways(uniprot_id)
+    except Exception as e:
+            print(f"[FETCH ERROR] {uniprot_id}: {e}")
+            return
+    if pathways is None:
         return
 
+    if len(pathways) == 0:
+        save_reactome_status(uniprot_id, has_pathway=False)
+        return
+    
     save_pathways(pathways)
 
     pathway_ids = [

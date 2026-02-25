@@ -4,6 +4,8 @@ from src.services.system_stats_service import (
     get_import_status_stats,
     get_not_in_chembl_reasons,
     get_local_chembl_count,
+    get_target_sync_percentage,
+    get_protein_with_pathway_percentage
 )
 
 router = APIRouter(prefix="/system", tags=["system-stats"])
@@ -19,4 +21,6 @@ def system_stats(user=Depends(require_login)):
         "local_import_status": get_import_status_stats(),
         "not_in_chembl_reasons": get_not_in_chembl_reasons(),
         "chembl_local_count": get_local_chembl_count(),
+        "target_sync_percentage": get_target_sync_percentage(),
+        "protein_with_pathway_percentage": get_protein_with_pathway_percentage(),
     }

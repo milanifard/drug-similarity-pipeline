@@ -1,0 +1,152 @@
+Data Synchronization Overview
+
+This module builds and maintains a structured drug–target–protein–pathway knowledge base by integrating local data with external biomedical resources.
+The system operates in multiple controlled stages and is safe to execute repeatedly.
+
+1. Local Drug Import
+
+Local drugs are introduced into the system through the “Import Local Drug List” feature (Excel upload).
+
+During import:
+
+Drug names are normalized.
+
+The system loads approved drugs from the locally cached ChEMBL database.
+
+A normalized lookup is built to match local drug names to ChEMBL molecule IDs.
+
+Matched drugs are stored in the local_drugs table.
+
+For each matched local drug, the following data are stored:
+
+Normalized name
+
+Original local name
+
+Matched ChEMBL name
+
+ChEMBL Molecule ID
+
+Canonical SMILES
+
+3D conformer (MolBlock format)
+
+Conformer source
+
+3D Conformer Strategy
+
+For each local drug:
+
+If a conformer already exists in the database → reuse it.
+
+Otherwise, attempt to retrieve a 3D conformer from PubChem.
+
+If PubChem does not provide one, a 3D conformer is generated locally using RDKit (ETKDG algorithm).
+
+The generated MolBlock is validated and then stored persistently.
+
+This ensures each local drug has a reliable 3D structure representation.
+
+2. ChEMBL Approved Drug Synchronization
+
+Approved drugs are retrieved directly from the ChEMBL Web API using paginated requests.
+
+Each synchronization step:
+
+Fetches a page of approved drugs (≈20 per request).
+
+Stores them in the chembl_approved_drugs table.
+
+Tracks synchronization progress in chembl_sync_state.
+
+Stored fields include:
+
+ChEMBL Molecule ID
+
+Drug name
+
+Canonical SMILES
+
+The process is incremental and resumable.
+
+3. Drug–Target Synchronization
+
+For local drugs that have not yet been processed:
+
+Targets are retrieved from the ChEMBL API using the drug’s ChEMBL ID.
+
+Target metadata are stored in chembl_targets.
+
+Drug–target relationships are stored in drug_targets (many-to-many).
+
+The drug is marked as synchronized to prevent reprocessing.
+
+Stored target information includes:
+
+Target ChEMBL ID
+
+Target name
+
+Organism
+
+Target type
+
+4. Target–Protein Synchronization
+
+For each synchronized target:
+
+Target component data are retrieved from the ChEMBL target component endpoint.
+
+UniProt-linked proteins are extracted.
+
+Protein metadata are stored in proteins.
+
+Target–protein mappings are stored in target_proteins.
+
+Stored protein information includes:
+
+UniProt ID
+
+Protein name
+
+Gene name
+
+Organism
+
+5. Reactome Pathway Synchronization (Optional Stage)
+
+For proteins that do not yet have pathway annotations:
+
+Reactome pathway data are retrieved from the Reactome Content Service API using UniProt IDs.
+
+Pathway metadata are stored in reactome_pathways.
+
+Protein–pathway mappings are stored in protein_pathways.
+
+Synchronization status is recorded in protein_reactome_status.
+
+Only proteins not previously processed are queried, ensuring efficient incremental updates.
+
+6. Data Relationships
+
+The system maintains normalized many-to-many relationships:
+
+Drug ↔ Target
+
+Target ↔ Protein
+
+Protein ↔ Pathway
+
+This enables efficient downstream queries such as retrieving all Reactome pathways associated with a given ChEMBL drug ID.
+
+System Characteristics
+
+Incremental synchronization
+
+Idempotent operations (safe to run multiple times)
+
+Duplicate-safe inserts
+
+Persistent progress tracking
+
+Fully normalized relational structure

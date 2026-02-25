@@ -21,6 +21,16 @@
         <h3>Failed Imports</h3>
         <div class="stat-value" id="failedCount">–</div>
     </div>
+
+    <div class="stat-card">
+        <h3>Target Synced</h3>
+        <div class="stat-value" id="targetSyncPercent">–</div>
+    </div>
+
+    <div class="stat-card">
+        <h3>Proteins with Pathway</h3>
+        <div class="stat-value" id="proteinPathwayPercent">–</div>
+    </div>
 </div>
 
 <!-- ================= Import Status Table ================= -->
@@ -74,6 +84,12 @@ async function loadSystemStats() {
         if (r.status === "IMPORTED") imported += r.count;
         if (r.status !== "IMPORTED") failed += r.count;
     });
+
+    document.getElementById("targetSyncPercent").innerText =
+        data.target_sync_percentage + "%";
+
+    document.getElementById("proteinPathwayPercent").innerText =
+        data.protein_with_pathway_percentage + "%";
 
     document.getElementById("importedCount").innerText = imported;
     document.getElementById("failedCount").innerText = failed;
