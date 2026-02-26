@@ -10,21 +10,48 @@ This operation synchronizes the local ChEMBL cache with the official ChEMBL sour
 It may take several minutes depending on network and dataset size.
 </p>
 
-<button id="syncBtn" onclick="runSync()">Start Sync</button>
+<button id="syncBtn" onclick="runSync()">Start ChEMBL Sync</button>
+
+<hr style="margin:40px 0;">
+
+<!-- ================= Reactome Pathway Sync ================= -->
+
+<h2>🧬 Sync Reactome Pathways</h2>
+
+<p style="max-width:800px;">
+This operation fetches biological pathways for synced proteins from Reactome.
+You can limit how many proteins should be processed.
+</p>
+
+<label>
+    Max proteins to process:
+    <input type="number" id="pathwayLimit" value="100" min="1" style="width:100px;">
+</label>
+
+<button id="pathwayBtn" onclick="runPathwaySync()">Start Pathway Sync</button>
 
 <!-- Spinner -->
 <div id="spinner" class="spinner-overlay" style="display:none;">
     <div class="spinner"></div>
-    <div>Synchronizing with ChEMBL, please wait…</div>
+    <div>Processing, please wait…</div>
 </div>
 
-<!-- Result -->
+<!-- ChEMBL Result -->
 <div id="resultBox" style="display:none; margin-top:25px;">
-<h3>✅ Sync Completed</h3>
+    <h3>✅ ChEMBL Sync Completed</h3>
     <ul>
         <li><b>Drug sync status:</b> <span id="drugStatus"></span></li>
         <li><b>Last drug offset:</b> <span id="drugOffset"></span></li>
         <li><b>Targets processed:</b> <span id="targetProcessed"></span></li>
+    </ul>
+</div>
+
+<!-- Reactome Result -->
+<div id="pathwayResultBox" style="display:none; margin-top:25px;">
+    <h3>✅ Pathway Sync Completed</h3>
+    <ul>
+        <li><b>Proteins processed:</b> <span id="pathwayProcessed"></span></li>
+        <li><b>Pathways inserted:</b> <span id="pathwayInserted"></span></li>
     </ul>
 </div>
 
@@ -65,5 +92,43 @@ async function runSync() {
         btn.disabled = false;
     }
 }
+
+async function runPathwaySync() {
+    const btn = document.getElementById("pathwayBtn");
+    const spinner = document.getElementById("spinner");
+    const resultBox = document.getElementById("pathwayResultBox");
+
+    const limit = document.getElementById("pathwayLimit").value || 100;
+
+    btn.disabled = true;
+    spinner.style.display = "block";
+    resultBox.style.display = "none";
+
+    try {
+        const res = await fetch(`/sync/reactome/pathways?limit=${limit}`, {
+            method: "POST"
+        });
+
+        if (!res.ok) throw new Error("Pathway sync failed");
+
+        const data = await res.json();
+
+        document.getElementById("pathwayProcessed").innerText =
+            data.summary?.processed_proteins ?? "-";
+
+        document.getElementById("pathwayInserted").innerText =
+            data.summary?.inserted_pathways ?? "-";
+
+        resultBox.style.display = "block";
+
+    } catch (err) {
+        alert("Error during Reactome pathway sync");
+        console.error(err);
+    } finally {
+        spinner.style.display = "none";
+        btn.disabled = false;
+    }
+}
 </script>
+
 {% endblock %}

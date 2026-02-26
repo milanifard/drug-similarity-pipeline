@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Similarity Pathway Config{% endblock %}
+
+{% block extra_css %}
+<style>
+    .row {
+        margin-bottom: 12px;
+    }
+
+    label {
+        display: inline-block;
+        width: 180px;
+    }
+
+    input {
+        padding: 6px;
+        width: 220px;
+    }
+
+    button {
+        padding: 6px 12px;
+        background: #2c7be5;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background: #1a68d1;
+    }
+
+    .danger-btn {
+        background: #dc3545;
+    }
+
+    .danger-btn:hover {
+        background: #b52a37;
+    }
+
+    table.similarity-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 25px;
+        font-size: 14px;
+    }
+
+    table.similarity-table th {
+        background: #f0f3f8;
+        color: #333;
+        font-weight: bold;
+        padding: 10px;
+        border-bottom: 2px solid #ccc;
+    }
+
+    table.similarity-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    table.similarity-table tbody tr:nth-child(even) {
+        background: #fafafa;
+    }
+
+    table.similarity-table tbody tr:hover {
+        background: #eef4ff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>⚙ Similarity Pathway Configuration</h1>
+
+<p style="max-width:800px;">
+Select which Reactome pathways should appear as columns in the Similarity results table.
+</p>
+
+<!-- Add new pathway -->
+<div class="row">
+    <label>Pathway ID:</label>
+    <input type="text" id="pathwayId" placeholder="e.g. R-HSA-168256">
+</div>
+
+<div class="row">
+    <label>Display Order:</label>
+    <input type="number" id="displayOrder" value="0">
+</div>
+
+<div class="row">
+    <label></label>
+    <button onclick="addPathway()">Add Pathway</button>
+</div>
+
+<!-- Table -->
+<table class="similarity-table">
+    <thead>
+        <tr>
+            <th>Pathway ID</th>
+            <th>Order</th>
+            <th style="width:120px;">Action</th>
+        </tr>
+    </thead>
+    <tbody id="pathwayTableBody"></tbody>
+</table>
+
+<script>
+
+async function loadPathways() {
+    const res = await fetch("/similarity-config/pathways");
+    const data = await res.json();
+
+    const tbody = document.getElementById("pathwayTableBody");
+    tbody.innerHTML = "";
+
+    data.pathways.forEach(p => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${p.pathway_id}</td>
+                <td>${p.display_order}</td>
+                <td>
+                    <button class="danger-btn"
+                        onclick="removePathway('${p.pathway_id}')">
+                        Remove
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+async function addPathway() {
+    const pathwayId = document.getElementById("pathwayId").value;
+    const displayOrder = document.getElementById("displayOrder").value;
+
+    if (!pathwayId) {
+        alert("Pathway ID is required");
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append("pathway_id", pathwayId);
+    fd.append("display_order", displayOrder);
+
+    await fetch("/similarity-config/pathways", {
+        method: "POST",
+        body: fd
+    });
+
+    document.getElementById("pathwayId").value = "";
+    document.getElementById("displayOrder").value = 0;
+
+    loadPathways();
+}
+
+async function removePathway(id) {
+    await fetch(`/similarity-config/pathways/${id}`, {
+        method: "DELETE"
+    });
+
+    loadPathways();
+}
+
+loadPathways();
+
+</script>
+
+{% endblock %}

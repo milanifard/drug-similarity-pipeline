@@ -32,3 +32,30 @@ def get_drug_pathways(molecule_chembl_id: str) -> List[Dict[str, Any]]:
         rows = conn.execute(sql, {"chembl_id": molecule_chembl_id}).mappings().all()
 
     return [dict(r) for r in rows]
+
+
+def get_all_pathways():
+    """
+    Return all Reactome pathways stored locally.
+    """
+
+    engine = get_engine()
+
+    query = text("""
+        SELECT pathway_id, pathway_name, species
+        FROM reactome_pathways
+        ORDER BY pathway_name
+    """)
+
+    with engine.connect() as conn:
+        result = conn.execute(query)
+        rows = result.fetchall()
+
+    return [
+        {
+            "pathway_id": row[0],
+            "pathway_name": row[1],
+            "species": row[2],
+        }
+        for row in rows
+    ]

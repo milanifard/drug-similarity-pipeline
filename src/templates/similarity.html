@@ -107,7 +107,10 @@ table.similarity-table {
     <label>nBits:</label>
     <input type="number" id="nbits" value="4096">
 </div>
-
+<div class="row">
+    <label>Max Results:</label>
+    <input type="number" id="maxResults" value="50" min="1">
+</div>
 <button id='runBtn' onclick="runSimilarity()">Run Similarity</button>
 <div id="spinner" class="spinner-overlay">
     <div class="spinner"></div>
@@ -188,11 +191,11 @@ async function showPathways(chemblId, drugName) {
 
         data.pathways.forEach(p => {
             list.innerHTML += `
-                <li>
+                <li style="margin-bottom:8px;">
+                    <div style="font-size:12px; color:#666;">
+                        ${p.pathway_id} - 
+                    </div>
                     <b>${p.pathway_name}</b>
-                    <span style="color:#777;">
-                        (${p.top_level_class ?? "—"})
-                    </span>
                 </li>
             `;
         });
@@ -214,15 +217,43 @@ async function runSimilarity() {
     const runBtn = document.getElementById("runBtn");
     const spinner = document.getElementById("spinner");
     const table = document.getElementById("resultTable");
+    const theadRow = table.querySelector("thead tr");
     const tbody = table.querySelector("tbody");
 
-    // UI state: loading
+    const maxResults = parseInt(document.getElementById("maxResults").value) || 50;
+
     runBtn.disabled = true;
     spinner.style.display = "block";
     table.style.display = "none";
     tbody.innerHTML = "";
 
     try {
+
+        // ===============================
+        // 1️⃣ Load selected pathways config
+        // ===============================
+        const configRes = await fetch("/similarity-config/pathways");
+        const configData = await configRes.json();
+        const selectedPathways = configData.pathways || [];
+
+        // ===============================
+        // 2️⃣ Build dynamic table header
+        // ===============================
+        theadRow.innerHTML = `
+            <th class="rank-col">#</th>
+            <th>Drug</th>
+            <th>2D</th>
+            <th>3D</th>
+            <th>Weighted</th>
+        `;
+
+        selectedPathways.forEach(p => {
+            theadRow.innerHTML += `<th>${p.pathway_id}</th>`;
+        });
+
+        // ===============================
+        // 3️⃣ Run similarity
+        // ===============================
         const fd = new FormData();
         fd.append("drug", drug.value);
         fd.append("alpha", alpha.value);
@@ -236,9 +267,30 @@ async function runSimilarity() {
         });
 
         const data = await res.json();
+        const limitedResults = (data.results || []).slice(0, maxResults);
 
-        data.results.forEach((r, idx) => {
-            tbody.innerHTML += `
+        // ===============================
+        // 4️⃣ For each drug, fetch its pathways
+        // ===============================
+        for (let idx = 0; idx < limitedResults.length; idx++) {
+            const r = limitedResults[idx];
+
+            let drugPathways = [];
+
+            try {
+                const pRes = await fetch(`/drugs/${r.chembl_id}/pathways`);
+                if (pRes.ok) {
+                    const pData = await pRes.json();
+                    drugPathways = (pData.pathways || []).map(p => p.pathway_id);
+                }
+            } catch (err) {
+                console.error("Pathway fetch error:", err);
+            }
+
+            // ===============================
+            // 5️⃣ Build row
+            // ===============================
+            let rowHtml = `
                 <tr>
                     <td class="rank-col">${idx + 1}</td>
                     <td>
@@ -251,9 +303,21 @@ async function runSimilarity() {
                     <td class="num">${r["2D_similarity"].toFixed(3)}</td>
                     <td class="num">${r["3D_similarity"].toFixed(3)}</td>
                     <td class="num weighted">${r["weighted_similarity"].toFixed(3)}</td>
-                </tr>
             `;
-        });
+
+            // Add pathway columns
+            selectedPathways.forEach(p => {
+                if (drugPathways.includes(p.pathway_id)) {
+                    rowHtml += `<td style="text-align:center;">✔</td>`;
+                } else {
+                    rowHtml += `<td></td>`;
+                }
+            });
+
+            rowHtml += `</tr>`;
+
+            tbody.innerHTML += rowHtml;
+        }
 
         table.style.display = "table";
 
@@ -261,7 +325,6 @@ async function runSimilarity() {
         alert("Error while computing similarity");
         console.error(err);
     } finally {
-        // UI state: done
         spinner.style.display = "none";
         runBtn.disabled = false;
     }

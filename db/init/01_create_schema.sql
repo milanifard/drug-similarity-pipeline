@@ -185,3 +185,11 @@ CREATE INDEX idx_dt_target ON drug_targets (target_chembl_id);
 CREATE INDEX idx_tp_protein ON target_proteins (uniprot_id);
 CREATE INDEX idx_pp_pathway ON protein_pathways (pathway_id);
 CREATE INDEX idx_dp_pathway ON drug_pathways (pathway_id);
+
+
+CREATE TABLE similarity_selected_pathways (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pathway_id VARCHAR(50) NOT NULL,
+    display_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE
+);

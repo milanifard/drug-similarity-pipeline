@@ -12,6 +12,7 @@ from src.web.import_ui import router as import_ui_router
 from src.api.system_stats import router as system_stats_router
 from src.web.chembl_sync import router as chembl_sync_ui_router
 from src.api.drug_pathways import router as drug_pathway_router
+from src.api.similarity_pathway_config_router import router as similarity_pathway_config_router
 
 app = FastAPI(
     title="Drug Similarity API",
@@ -37,7 +38,7 @@ app.include_router(chembl_sync_ui_router)
 app.include_router(check_router)
 app.include_router(import_router)
 app.include_router(similarity_router)
-
+app.include_router(similarity_pathway_config_router)
 
 
 if __name__ == "__main__":

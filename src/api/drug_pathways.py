@@ -1,8 +1,20 @@
 from fastapi import APIRouter, HTTPException
-from services.drug_pathway_service import get_drug_pathways
+from services.drug_pathway_service import get_drug_pathways, get_all_pathways
 
 router = APIRouter(prefix="/drugs", tags=["drug-pathways"])
 
+@router.get("/pathways")
+def all_pathways():
+    """
+    Return all Reactome pathways stored in local DB.
+    """
+
+    pathways = get_all_pathways()
+
+    return {
+        "pathway_count": len(pathways),
+        "pathways": pathways
+    }
 
 @router.get("/{chembl_id}/pathways")
 def drug_pathways(chembl_id: str):

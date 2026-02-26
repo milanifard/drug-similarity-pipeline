@@ -16,7 +16,7 @@ def similarity_page(
         "similarity.html",
         {
             "request": request,
-            "user": user,   # ✅ خیلی مهم
+            "user": user,   
         }
     )
 
@@ -24,7 +24,7 @@ def similarity_page(
 @router.post("/similarity-ui/run")
 def run_similarity(
     request: Request,
-    user=Depends(require_login),   # حتی اگر استفاده نشود
+    user=Depends(require_login),
     drug: str = Form(...),
     alpha: float = Form(0.7),
     threshold: float = Form(0.5),
