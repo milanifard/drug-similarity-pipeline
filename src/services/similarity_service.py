@@ -2,16 +2,16 @@ import pandas as pd
 import numpy as np
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, rdMolDescriptors
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 
 from src.services.chemdb_service import get_engine
 from src.data_sources import chembl_client
 from src.services.conformer_manager import build_query_conformer
 
 
-def _get_selected_target_ids(engine):
+def _get_selected_targets_map(engine):
     query = text("""
-        SELECT target_chembl_id
+        SELECT target_chembl_id, target_name
         FROM similarity_selected_targets
         WHERE is_active = TRUE
     """)
@@ -19,7 +19,10 @@ def _get_selected_target_ids(engine):
     with engine.connect() as conn:
         rows = conn.execute(query).fetchall()
 
-    return {row[0] for row in rows}
+    return {
+        row[0]: (row[1] or row[0])
+        for row in rows
+    }
 
 
 def _get_drug_targets_map(engine, chembl_ids: list[str]):
@@ -29,22 +32,19 @@ def _get_drug_targets_map(engine, chembl_ids: list[str]):
     query = text("""
         SELECT
             molecule_chembl_id,
-            target_chembl_id,
-            target_name
+            target_chembl_id
         FROM drug_targets
         WHERE molecule_chembl_id IN :chembl_ids
-    """)
+    """).bindparams(bindparam("chembl_ids", expanding=True))
 
     with engine.connect() as conn:
-        rows = conn.execute(
-            query.bindparams(chembl_ids=tuple(chembl_ids))
-        ).fetchall()
+        rows = conn.execute(query, {"chembl_ids": chembl_ids}).fetchall()
 
     result = {}
 
-    for molecule_chembl_id, target_chembl_id, target_name in rows:
-        result.setdefault(molecule_chembl_id, {})
-        result[molecule_chembl_id][target_chembl_id] = target_name or target_chembl_id
+    for molecule_chembl_id, target_chembl_id in rows:
+        result.setdefault(molecule_chembl_id, set())
+        result[molecule_chembl_id].add(target_chembl_id)
 
     return result
 
@@ -54,7 +54,8 @@ def enrich_with_shared_selected_targets(
     ref_chembl_id: str,
     engine,
 ):
-    selected_target_ids = _get_selected_target_ids(engine)
+    selected_targets_map = _get_selected_targets_map(engine)
+    selected_target_ids = set(selected_targets_map.keys())
 
     if not selected_target_ids:
         merged["shared_selected_targets"] = ""
@@ -62,24 +63,22 @@ def enrich_with_shared_selected_targets(
         return merged
 
     result_chembl_ids = merged["chembl_id"].dropna().tolist()
-    all_chembl_ids = [ref_chembl_id] + result_chembl_ids
+    all_chembl_ids = list(set([ref_chembl_id] + result_chembl_ids))
 
     targets_map = _get_drug_targets_map(engine, all_chembl_ids)
 
-    ref_targets = targets_map.get(ref_chembl_id, {})
-    ref_selected_target_ids = set(ref_targets.keys()) & selected_target_ids
+    ref_targets = targets_map.get(ref_chembl_id, set())
+    ref_selected_target_ids = ref_targets & selected_target_ids
 
     shared_names = []
     shared_counts = []
 
     for chembl_id in merged["chembl_id"]:
-        candidate_targets = targets_map.get(chembl_id, {})
-        shared_ids = ref_selected_target_ids & set(candidate_targets.keys())
+        candidate_targets = targets_map.get(chembl_id, set())
+        shared_ids = ref_selected_target_ids & candidate_targets
 
         names = [
-            ref_targets.get(target_id)
-            or candidate_targets.get(target_id)
-            or target_id
+            selected_targets_map.get(target_id, target_id)
             for target_id in sorted(shared_ids)
         ]
 
