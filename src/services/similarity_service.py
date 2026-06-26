@@ -88,6 +88,10 @@ def enrich_with_shared_selected_targets(
     merged["shared_selected_targets"] = shared_names
     merged["shared_selected_target_count"] = shared_counts
 
+    print("SELECTED TARGETS COUNT:", len(selected_target_ids))
+    print("REF TARGETS COUNT:", len(ref_targets))
+    print("REF SELECTED TARGETS:", ref_selected_target_ids)
+    
     return merged
 
 # ----------------------------
@@ -238,8 +242,12 @@ def compute_similarity_with_local_drugs(
     name_to_chembl = dict(zip(names, chembl_ids))
     merged["chembl_id"] = merged["name"].map(name_to_chembl)
 
-
+    print("REF ROW COLUMNS:", ref_row.index.tolist())
+    
     ref_chembl_id = ref_row.get("chembl_id") or ref_row.get("molecule_chembl_id")
+
+    print("REF CHEMBL ID:", ref_chembl_id)
+    print("RESULT CHEMBL IDS SAMPLE:", merged["chembl_id"].head().tolist())
 
     if ref_chembl_id:
         merged = enrich_with_shared_selected_targets(
