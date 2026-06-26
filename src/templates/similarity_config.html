@@ -104,6 +104,44 @@ Select which Reactome pathways should appear as columns in the Similarity result
     <tbody id="pathwayTableBody"></tbody>
 </table>
 
+
+<hr>
+
+<h4>Selected Targets for Similarity Output</h4>
+
+<form id="target-config-form">
+    <div>
+        <label>Target ChEMBL ID</label>
+        <input type="text" name="target_chembl_id" required
+               placeholder="Example: CHEMBLxxxx">
+    </div>
+
+    <div>
+        <label>Target Name</label>
+        <input type="text" name="target_name"
+               placeholder="Example: Nuclear factor erythroid 2-related factor 2">
+    </div>
+
+    <div>
+        <label>Display Order</label>
+        <input type="number" name="display_order" value="0">
+    </div>
+
+    <button type="submit">Add Target</button>
+</form>
+
+<table border="1" width="100%" id="selected-targets-table">
+    <thead>
+        <tr>
+            <th>Order</th>
+            <th>Target ChEMBL ID</th>
+            <th>Target Name</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
 <script>
 
 async function loadPathways() {
@@ -162,6 +200,68 @@ async function removePathway(id) {
 }
 
 loadPathways();
+
+async function loadSelectedTargets() {
+    const res = await fetch("/similarity-config/targets");
+    const data = await res.json();
+
+    const tbody = document.querySelector("#selected-targets-table tbody");
+    tbody.innerHTML = "";
+
+    data.targets.forEach(t => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+            <td>${t.display_order}</td>
+            <td>${t.target_chembl_id}</td>
+            <td>${t.target_name || ""}</td>
+            <td>
+                <button onclick="removeSelectedTarget('${t.target_chembl_id}')">
+                    Remove
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+}
+
+document
+    .getElementById("target-config-form")
+    .addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+
+        const res = await fetch("/similarity-config/targets", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!res.ok) {
+            alert("Error adding target");
+            return;
+        }
+
+        this.reset();
+        await loadSelectedTargets();
+    });
+
+async function removeSelectedTarget(targetChemblId) {
+    const res = await fetch(
+        `/similarity-config/targets/${encodeURIComponent(targetChemblId)}`,
+        { method: "DELETE" }
+    );
+
+    if (!res.ok) {
+        alert("Error removing target");
+        return;
+    }
+
+    await loadSelectedTargets();
+}
+
+loadSelectedTargets();
 
 </script>
 

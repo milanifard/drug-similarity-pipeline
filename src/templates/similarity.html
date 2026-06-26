@@ -124,6 +124,8 @@ table.similarity-table {
             <th>2D</th>
             <th>3D</th>
             <th>Weighted</th>
+            <th>Shared Targets Count</th>
+            <th>Shared Targets</th>
         </tr>
     </thead>
     <tbody></tbody>
@@ -245,6 +247,8 @@ async function runSimilarity() {
             <th>2D</th>
             <th>3D</th>
             <th>Weighted</th>
+            <th>Shared Targets Count</th>
+            <th>Shared Targets</th>
         `;
 
         selectedPathways.forEach(p => {
@@ -303,6 +307,8 @@ async function runSimilarity() {
                     <td class="num">${r["2D_similarity"].toFixed(3)}</td>
                     <td class="num">${r["3D_similarity"].toFixed(3)}</td>
                     <td class="num weighted">${r["weighted_similarity"].toFixed(3)}</td>
+                    <td class="num">${r["shared_selected_target_count"] || 0}</td>
+                    <td>${r["shared_selected_targets"] || ""}</td>
             `;
 
             // Add pathway columns
