@@ -193,3 +193,18 @@ CREATE TABLE similarity_selected_pathways (
     display_order INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE
 );
+
+
+CREATE TABLE similarity_selected_targets (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    target_chembl_id VARCHAR(50) NOT NULL,
+    target_name VARCHAR(500) NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_similarity_selected_targets_target (target_chembl_id),
+    INDEX idx_similarity_selected_targets_active_order (is_active, display_order),
+    INDEX idx_similarity_selected_targets_name (target_name)
+);
