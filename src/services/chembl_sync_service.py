@@ -192,23 +192,25 @@ def mark_drug_targets_synced(chembl_id: str):
 def sync_drug_targets(molecule_chembl_id: str):
     """
     Sync targets and proteins for a single drug.
+
+    Important:
+    Do NOT skip when drug_targets already exist.
+    Existing data may be incomplete because older sync versions only used activity data.
     """
-    if drug_targets_exist(molecule_chembl_id):
-            print(f"[SKIP] targets already synced for {molecule_chembl_id}")
-            return
-    
     targets = fetch_targets_for_drug(molecule_chembl_id)
 
     if not targets:
+        mark_drug_targets_synced(molecule_chembl_id)
+        print(f"[TARGET-SYNC] no targets found for {molecule_chembl_id}")
         return
 
-    # ---- save targets ----
     save_targets(targets)
 
-    target_ids = {t["target_chembl_id"] for t in targets}
+    target_ids = {t["target_chembl_id"] for t in targets if t.get("target_chembl_id")}
     save_drug_targets(molecule_chembl_id, target_ids)
+
     mark_drug_targets_synced(molecule_chembl_id)
-    # ---- for each target → proteins ----
+
     for t in targets:
         target_id = t["target_chembl_id"]
 

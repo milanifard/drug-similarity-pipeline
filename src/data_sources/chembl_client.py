@@ -147,8 +147,21 @@ def get_local_approved_drugs(limit: int | None = None) -> pd.DataFrame:
 
     return pd.read_sql(query, engine)
 
-
 def fetch_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
+    activity_targets = fetch_activity_targets_for_drug(molecule_chembl_id)
+    mechanism_targets = fetch_mechanism_targets_for_drug(molecule_chembl_id)
+
+    targets = {}
+
+    for t in activity_targets + mechanism_targets:
+        tid = t.get("target_chembl_id")
+        if not tid:
+            continue
+        targets[tid] = t
+
+    return list(targets.values())
+
+def fetch_activity_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
     """
     Fetch targets associated with a given drug (molecule_chembl_id).
     """
@@ -220,3 +233,35 @@ def fetch_target_components(target_chembl_id: str) -> list[dict]:
 
     return proteins
 
+def fetch_mechanism_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
+    client = get_client()
+    mechanism = client.mechanism
+
+    try:
+        res = mechanism.filter(
+            molecule_chembl_id=molecule_chembl_id
+        ).only([
+            "target_chembl_id",
+            "target_pref_name",
+            "mechanism_of_action",
+            "action_type"
+        ])
+    except Exception as ex:
+        print(f"[CHEMBL ERROR] fetch_mechanism_targets_for_drug({molecule_chembl_id}): {ex}")
+        return []
+
+    targets = {}
+
+    for r in res:
+        tid = r.get("target_chembl_id")
+        if not tid:
+            continue
+
+        targets[tid] = {
+            "target_chembl_id": tid,
+            "target_name": r.get("target_pref_name"),
+            "organism": None,
+            "target_type": None,
+        }
+
+    return list(targets.values())
