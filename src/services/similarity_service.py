@@ -8,6 +8,47 @@ from src.services.chemdb_service import get_engine
 from src.data_sources import chembl_client
 from src.services.conformer_manager import build_query_conformer
 
+def resolve_local_ref_chembl_id(engine, ref_chembl_id: str, ref_name: str, ref_smiles: str):
+    query = text("""
+        SELECT molecule_chembl_id
+        FROM local_drugs
+        WHERE molecule_chembl_id = :ref_chembl_id
+        LIMIT 1
+    """)
+
+    with engine.connect() as conn:
+        row = conn.execute(query, {"ref_chembl_id": ref_chembl_id}).fetchone()
+
+    if row:
+        return row[0]
+
+    query = text("""
+        SELECT molecule_chembl_id
+        FROM local_drugs
+        WHERE LOWER(normalized_name) = LOWER(:ref_name)
+        LIMIT 1
+    """)
+
+    with engine.connect() as conn:
+        row = conn.execute(query, {"ref_name": ref_name}).fetchone()
+
+    if row:
+        return row[0]
+
+    query = text("""
+        SELECT molecule_chembl_id
+        FROM local_drugs
+        WHERE smiles = :ref_smiles
+        LIMIT 1
+    """)
+
+    with engine.connect() as conn:
+        row = conn.execute(query, {"ref_smiles": ref_smiles}).fetchone()
+
+    if row:
+        return row[0]
+
+    return ref_chembl_id
 
 def _get_selected_targets_map(engine):
     query = text("""
@@ -244,9 +285,17 @@ def compute_similarity_with_local_drugs(
 
     print("REF ROW COLUMNS:", ref_row.index.tolist())
     
-    ref_chembl_id = ref_row.get("chembl_id") or ref_row.get("molecule_chembl_id")
+    ref_chembl_id_from_chembl = ref_row.get("chembl_id") or ref_row.get("molecule_chembl_id")
 
-    print("REF CHEMBL ID:", ref_chembl_id)
+    ref_chembl_id = resolve_local_ref_chembl_id(
+        engine=engine,
+        ref_chembl_id=ref_chembl_id_from_chembl,
+        ref_name=ref_row.get("name") or drug,
+        ref_smiles=ref_smiles,
+    )
+
+    print("REF CHEMBL ID FROM CHEMBL:", ref_chembl_id_from_chembl)
+    print("REF CHEMBL ID LOCAL RESOLVED:", ref_chembl_id)
     print("RESULT CHEMBL IDS SAMPLE:", merged["chembl_id"].head().tolist())
 
     if ref_chembl_id:
