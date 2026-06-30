@@ -5,8 +5,43 @@ from rdkit.Chem import AllChem, rdMolDescriptors
 from sqlalchemy import text, bindparam
 
 from src.services.chemdb_service import get_engine
-from src.data_sources import chembl_client
 from src.services.conformer_manager import build_query_conformer
+
+def search_local_molecule(engine, drug_name: str) -> pd.DataFrame:
+    query_norm = drug_name.strip().lower()
+
+    query = text("""
+        SELECT
+            ld.molecule_chembl_id AS chembl_id,
+            ld.normalized_name AS name,
+            ld.smiles,
+            COUNT(dt.target_chembl_id) AS target_count
+        FROM local_drugs ld
+        LEFT JOIN drug_targets dt
+            ON dt.molecule_chembl_id = ld.molecule_chembl_id
+        WHERE LOWER(ld.normalized_name) = :query_norm
+           OR LOWER(ld.normalized_name) LIKE :query_like
+        GROUP BY
+            ld.molecule_chembl_id,
+            ld.normalized_name,
+            ld.smiles
+        ORDER BY
+            CASE
+                WHEN LOWER(ld.normalized_name) = :query_norm THEN 0
+                ELSE 1
+            END,
+            target_count DESC,
+            ld.normalized_name
+        LIMIT 10
+    """)
+
+    with engine.connect() as conn:
+        rows = conn.execute(query, {
+            "query_norm": query_norm,
+            "query_like": f"%{query_norm}%"
+        }).mappings().all()
+
+    return pd.DataFrame(rows)
 
 def resolve_local_ref_chembl_id(engine, ref_chembl_id: str, ref_name: str, ref_smiles: str):
     query = text("""
@@ -200,13 +235,14 @@ def compute_similarity_with_local_drugs(
     nbits: int,
 ):
     # ------------------------------------------------------------
-    # 1) Resolve query drug via ChEMBL
+    # 1) Resolve query drug via local drugs
     # ------------------------------------------------------------
     query_norm = drug.strip().lower()
-    ref_df = chembl_client.search_molecule(drug)
-    if ref_df.empty:
-        raise ValueError(f"Query drug '{drug}' not found in ChEMBL")
+    engine = get_engine()
 
+    ref_df = search_local_molecule(engine, drug)
+    if ref_df.empty:
+        raise ValueError(f"Query drug '{drug}' not found in local drug database")
     ref_row = ref_df.iloc[0]
     ref_smiles = ref_row["smiles"]
 
@@ -222,7 +258,6 @@ def compute_similarity_with_local_drugs(
     # ------------------------------------------------------------
     # 3) Load local drugs from DB
     # ------------------------------------------------------------
-    engine = get_engine()
     df = pd.read_sql(
         """
         SELECT
@@ -289,7 +324,7 @@ def compute_similarity_with_local_drugs(
 
     ref_chembl_id = resolve_local_ref_chembl_id(
         engine=engine,
-        ref_chembl_id=ref_chembl_id_from_chembl,
+        ref_chembl_id=ref_row.get("chembl_id"),
         ref_name=ref_row.get("name") or drug,
         ref_smiles=ref_smiles,
     )
