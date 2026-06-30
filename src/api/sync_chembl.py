@@ -1,10 +1,18 @@
 # src/api/sync_chembl.py
 
 from fastapi import APIRouter
-from services.chembl_sync_service import sync_next_page, sync_targets_batch
+from services.chembl_sync_service import (
+    sync_next_page,
+    sync_targets_batch,
+    get_chembl_sync_progress,
+)
 from services.reactome_sync_service import sync_reactome_batch
 
 router = APIRouter(prefix="/sync", tags=["chembl"])
+
+@router.get("/chembl/status")
+def get_chembl_status():
+    return get_chembl_sync_progress()
 
 @router.post("/reactome/pathways")
 def sync_reactome_pathways(limit: int = 50):

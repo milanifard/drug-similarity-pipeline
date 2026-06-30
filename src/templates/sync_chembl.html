@@ -11,7 +11,9 @@ It may take several minutes depending on network and dataset size.
 </p>
 
 <button id="syncBtn" onclick="runSync()">Start ChEMBL Sync</button>
-
+<div id="chemblSyncStatus" style="margin-top:12px; color:#555;">
+    Loading sync status...
+</div>
 <hr style="margin:40px 0;">
 
 <!-- ================= Reactome Pathway Sync ================= -->
@@ -90,6 +92,7 @@ async function runSync() {
     } finally {
         spinner.style.display = "none";
         btn.disabled = false;
+        await loadChemblSyncStatus();
     }
 }
 
@@ -129,6 +132,32 @@ async function runPathwaySync() {
         btn.disabled = false;
     }
 }
+
+async function loadChemblSyncStatus() {
+    const box = document.getElementById("chemblSyncStatus");
+
+    try {
+        const res = await fetch("/sync/chembl/status");
+        if (!res.ok) throw new Error("Failed to load sync status");
+
+        const data = await res.json();
+
+        box.innerHTML = `
+            <b>Target sync progress:</b>
+            ${data.targets_synced_count} / ${data.total_local_drugs}
+            synced
+            (${data.targets_sync_percent}%)
+            —
+            <b>${data.targets_unsynced_count}</b>
+            drugs remaining
+        `;
+    } catch (err) {
+        box.innerText = "Could not load sync status.";
+        console.error(err);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", loadChemblSyncStatus);
 </script>
 
 {% endblock %}

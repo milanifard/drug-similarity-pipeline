@@ -8,6 +8,33 @@ from data_sources.chembl_client import fetch_approved_page, fetch_target_compone
 
 PAGE_SIZE = 20   # ChEMBL returns ~20 records per page
 
+
+def get_chembl_sync_progress():
+    engine = get_engine()
+
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            SELECT
+                COUNT(*) AS total_local_drugs,
+                SUM(CASE WHEN targets_synced = 1 THEN 1 ELSE 0 END) AS targets_synced_count,
+                SUM(CASE WHEN targets_synced = 0 THEN 1 ELSE 0 END) AS targets_unsynced_count
+            FROM local_drugs
+        """)).mappings().first()
+
+    total = row["total_local_drugs"] or 0
+    synced = row["targets_synced_count"] or 0
+    unsynced = row["targets_unsynced_count"] or 0
+
+    percent = round((synced / total) * 100, 2) if total else 0
+
+    return {
+        "total_local_drugs": total,
+        "targets_synced_count": synced,
+        "targets_unsynced_count": unsynced,
+        "targets_sync_percent": percent,
+        "is_targets_completed": unsynced == 0
+    }
+
 def sync_targets_batch(limit: int = 50) -> Dict[str, Any]:
     """
     Sync targets for a batch of local drugs.
