@@ -1,29 +1,24 @@
 import pandas as pd
 from sqlalchemy import text
 from services.chemdb_service import get_engine
-from chembl_webresource_client.http_errors import HttpApplicationError
+#from chembl_webresource_client.http_errors import HttpApplicationError
 
 _client = None
 
+import requests
 
-def get_client():
-    """
-    Lazy-load ChEMBL client.
-    Importing chembl_webresource_client at module-load time causes
-    service startup failures if the API is down.
-    """
+CHEMBL_BASE_URL = "https://www.ebi.ac.uk/chembl/api/data"
 
-    global _client
-    if _client is None:
-        try:
-            # 🔥 Lazy import — ONLY happens when first needed
-            from chembl_webresource_client.new_client import new_client as _new_client
-            _client = _new_client
-        except Exception as ex:
-            raise RuntimeError(f"Failed to initialize ChEMBL client: {ex}")
+def chembl_get(endpoint: str, params: dict | None = None):
+    url = f"{CHEMBL_BASE_URL}/{endpoint}.json"
+    r = requests.get(url, params=params, timeout=60)
+    r.raise_for_status()
+    return r.json()
 
-    return _client
 
+def chembl_list(endpoint: str, root_key: str, params: dict | None = None):
+    data = chembl_get(endpoint, params=params)
+    return data.get(root_key, [])
 
 # ============================================================
 # SAFE API CALL WRAPPERS
@@ -152,7 +147,6 @@ def fetch_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
     mechanism_targets = fetch_mechanism_targets_for_drug(molecule_chembl_id)
 
     targets = {}
-
     for t in activity_targets + mechanism_targets:
         tid = t.get("target_chembl_id")
         if not tid:
@@ -162,22 +156,15 @@ def fetch_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
     return list(targets.values())
 
 def fetch_activity_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
-    """
-    Fetch targets associated with a given drug (molecule_chembl_id).
-    """
-
-    client = get_client()
-    activity = client.activity
-
     try:
-        res = activity.filter(
-            molecule_chembl_id=molecule_chembl_id
-        ).only([
-            "target_chembl_id",
-            "target_pref_name",
-            "target_organism",
-            "target_type"
-        ])
+        res = chembl_list(
+            "activity",
+            "activities",
+            {
+                "molecule_chembl_id": molecule_chembl_id,
+                "limit": 1000,
+            },
+        )
     except Exception as ex:
         print(f"[CHEMBL ERROR] fetch_targets_for_drug({molecule_chembl_id}): {ex}")
         return []
@@ -195,30 +182,19 @@ def fetch_activity_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
             "target_type": r.get("target_type"),
         }
 
-    # unique targets
     return list(targets.values())
 
 
 def fetch_target_components(target_chembl_id: str) -> list[dict]:
-    """
-    Fetch protein components (UniProt) for a given target.
-    """
-
-    client = get_client()
-    target = client.target
-
     try:
-        t = target.get(target_chembl_id)
+        t = chembl_get(f"target/{target_chembl_id}")
     except Exception as ex:
         print(f"[CHEMBL ERROR] fetch_target_components({target_chembl_id}): {ex}")
         return []
 
-    if not t:
-        return []
-
     components = t.get("target_components") or []
-
     proteins = []
+
     for c in components:
         acc = c.get("accession")
         if not acc:
@@ -234,24 +210,20 @@ def fetch_target_components(target_chembl_id: str) -> list[dict]:
     return proteins
 
 def fetch_mechanism_targets_for_drug(molecule_chembl_id: str) -> list[dict]:
-    client = get_client()
-    mechanism = client.mechanism
-
     try:
-        res = mechanism.filter(
-            molecule_chembl_id=molecule_chembl_id
-        ).only([
-            "target_chembl_id",
-            "target_pref_name",
-            "mechanism_of_action",
-            "action_type"
-        ])
+        res = chembl_list(
+            "mechanism",
+            "mechanisms",
+            {
+                "molecule_chembl_id": molecule_chembl_id,
+                "limit": 1000,
+            },
+        )
     except Exception as ex:
         print(f"[CHEMBL ERROR] fetch_mechanism_targets_for_drug({molecule_chembl_id}): {ex}")
         return []
 
     targets = {}
-
     for r in res:
         tid = r.get("target_chembl_id")
         if not tid:
