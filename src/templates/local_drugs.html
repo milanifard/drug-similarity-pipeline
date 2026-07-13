@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Local Drugs{% endblock %}
+
+{% block content %}
+
+<h1>Local Drugs</h1>
+
+<div style="
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin:20px 0;
+">
+    <input
+        type="text"
+        id="searchInput"
+        placeholder="Search by local name..."
+        maxlength="200"
+        style="
+            width:100%;
+            max-width:500px;
+            padding:10px 12px;
+            border:1px solid #ccc;
+            border-radius:6px;
+        "
+    >
+
+    <button
+        type="button"
+        id="searchButton"
+        style="padding:10px 18px;"
+    >
+        Search
+    </button>
+
+    <button
+        type="button"
+        id="clearButton"
+        style="padding:10px 18px;"
+    >
+        Clear
+    </button>
+</div>
+
+<div
+    id="resultSummary"
+    style="margin-bottom:15px;"
+></div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Local Name</th>
+            <th>ChEMBL Name</th>
+            <th>ChEMBL ID</th>
+        </tr>
+    </thead>
+
+    <tbody id="drugsTableBody">
+        <tr>
+            <td colspan="3">Loading...</td>
+        </tr>
+    </tbody>
+</table>
+
+<div
+    id="pagination"
+    style="
+        display:flex;
+        flex-wrap:wrap;
+        gap:6px;
+        align-items:center;
+        margin-top:20px;
+    "
+></div>
+
+<script>
+    const PAGE_SIZE = 20;
+
+    let currentPage = 1;
+    let currentSearch = "";
+
+    const searchInput = document.getElementById("searchInput");
+    const searchButton = document.getElementById("searchButton");
+    const clearButton = document.getElementById("clearButton");
+    const tableBody = document.getElementById("drugsTableBody");
+    const pagination = document.getElementById("pagination");
+    const resultSummary = document.getElementById("resultSummary");
+
+
+    function escapeHtml(value) {
+        const element = document.createElement("div");
+        element.textContent = value ?? "";
+        return element.innerHTML;
+    }
+
+
+    async function loadDrugs(page = 1) {
+        currentPage = page;
+
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="3">Loading...</td>
+            </tr>
+        `;
+
+        pagination.innerHTML = "";
+
+        const params = new URLSearchParams({
+            page: String(currentPage),
+            page_size: String(PAGE_SIZE),
+            search: currentSearch
+        });
+
+        try {
+            const response = await fetch(
+                `/api/local-drugs?${params.toString()}`
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `Request failed with status ${response.status}`
+                );
+            }
+
+            const data = await response.json();
+
+            renderTable(data.items);
+            renderPagination(data);
+            renderSummary(data);
+
+        } catch (error) {
+            console.error(error);
+
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="3">
+                        Failed to load local drugs.
+                    </td>
+                </tr>
+            `;
+
+            resultSummary.textContent = "";
+        }
+    }
+
+
+    function renderTable(items) {
+        tableBody.innerHTML = "";
+
+        if (!items.length) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="3">
+                        No local drugs found.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        items.forEach(drug => {
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
+                <td>${escapeHtml(drug.local_name)}</td>
+                <td>${escapeHtml(drug.chembl_name)}</td>
+                <td>${escapeHtml(drug.molecule_chembl_id)}</td>
+            `;
+
+            tableBody.appendChild(row);
+        });
+    }
+
+
+    function renderSummary(data) {
+        if (data.total === 0) {
+            resultSummary.textContent = "No results";
+            return;
+        }
+
+        const start = ((data.page - 1) * data.page_size) + 1;
+        const end = Math.min(
+            data.page * data.page_size,
+            data.total
+        );
+
+        resultSummary.textContent =
+            `Showing ${start}-${end} of ${data.total}`;
+    }
+
+
+    function createPageButton(label, page, disabled = false, active = false) {
+        const button = document.createElement("button");
+
+        button.type = "button";
+        button.textContent = label;
+        button.disabled = disabled;
+
+        button.style.padding = "7px 11px";
+
+        if (active) {
+            button.style.fontWeight = "bold";
+            button.style.border = "2px solid currentColor";
+        }
+
+        if (!disabled) {
+            button.addEventListener("click", () => {
+                loadDrugs(page);
+            });
+        }
+
+        return button;
+    }
+
+
+    function renderPagination(data) {
+        pagination.innerHTML = "";
+
+        if (data.total_pages <= 1) {
+            return;
+        }
+
+        pagination.appendChild(
+            createPageButton(
+                "Previous",
+                data.page - 1,
+                data.page <= 1
+            )
+        );
+
+        const firstPage = Math.max(1, data.page - 2);
+        const lastPage = Math.min(
+            data.total_pages,
+            data.page + 2
+        );
+
+        if (firstPage > 1) {
+            pagination.appendChild(
+                createPageButton("1", 1, false, data.page === 1)
+            );
+
+            if (firstPage > 2) {
+                const dots = document.createElement("span");
+                dots.textContent = "...";
+                pagination.appendChild(dots);
+            }
+        }
+
+        for (let page = firstPage; page <= lastPage; page++) {
+            pagination.appendChild(
+                createPageButton(
+                    String(page),
+                    page,
+                    false,
+                    page === data.page
+                )
+            );
+        }
+
+        if (lastPage < data.total_pages) {
+            if (lastPage < data.total_pages - 1) {
+                const dots = document.createElement("span");
+                dots.textContent = "...";
+                pagination.appendChild(dots);
+            }
+
+            pagination.appendChild(
+                createPageButton(
+                    String(data.total_pages),
+                    data.total_pages,
+                    false,
+                    data.page === data.total_pages
+                )
+            );
+        }
+
+        pagination.appendChild(
+            createPageButton(
+                "Next",
+                data.page + 1,
+                data.page >= data.total_pages
+            )
+        );
+    }
+
+
+    function applySearch() {
+        currentSearch = searchInput.value.trim();
+        loadDrugs(1);
+    }
+
+
+    searchButton.addEventListener("click", applySearch);
+
+    searchInput.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            applySearch();
+        }
+    });
+
+    clearButton.addEventListener("click", () => {
+        searchInput.value = "";
+        currentSearch = "";
+        loadDrugs(1);
+    });
+
+
+    loadDrugs();
+</script>
+
+{% endblock %}

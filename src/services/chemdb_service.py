@@ -58,3 +58,72 @@ def get_local_drug_by_normalized_name(normalized_name: str):
     with engine.connect() as conn:
         row = conn.execute(sql, {"name": normalized_name}).mappings().first()
         return dict(row) if row else None
+
+def get_local_drugs_paginated(
+    page: int = 1,
+    page_size: int = 20,
+    search: str = "",
+) -> Dict[str, Any]:
+    """
+    Return paginated local drugs.
+
+    Search is applied only to local_name.
+    """
+
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), 100)
+    offset = (page - 1) * page_size
+
+    search = search.strip()
+
+    where_clause = ""
+    params: Dict[str, Any] = {
+        "limit": page_size,
+        "offset": offset,
+    }
+
+    if search:
+        where_clause = "WHERE local_name LIKE :search"
+        params["search"] = f"%{search}%"
+
+    count_sql = text(f"""
+        SELECT COUNT(*) AS total
+        FROM local_drugs
+        {where_clause}
+    """)
+
+    list_sql = text(f"""
+        SELECT
+            local_name,
+            chembl_name,
+            molecule_chembl_id
+        FROM local_drugs
+        {where_clause}
+        ORDER BY local_name ASC
+        LIMIT :limit OFFSET :offset
+    """)
+
+    engine = get_engine()
+
+    with engine.connect() as conn:
+        total = conn.execute(count_sql, params).scalar_one()
+
+        rows = conn.execute(
+            list_sql,
+            params,
+        ).mappings().all()
+
+    total_pages = (
+        (total + page_size - 1) // page_size
+        if total > 0
+        else 0
+    )
+
+    return {
+        "items": [dict(row) for row in rows],
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "search": search,
+    }

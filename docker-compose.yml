@@ -10,8 +10,6 @@ services:
       MYSQL_DATABASE: chemdb
       MYSQL_USER: chemuser
       MYSQL_PASSWORD: chempass
-    ports:
-      - "3306:3306"
     volumes:
       - d:/chemdb_data:/var/lib/mysql
 

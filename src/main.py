@@ -14,6 +14,7 @@ from src.web.chembl_sync import router as chembl_sync_ui_router
 from src.api.drug_pathways import router as drug_pathway_router
 from src.api.similarity_pathway_config_router import router as similarity_pathway_config_router
 from src.api.similarity_target_config_router import router as similarity_target_config_router
+from src.web.local_drugs import router as local_drugs_router
 
 app = FastAPI(
     title="Drug Similarity API",
@@ -30,6 +31,7 @@ app.add_middleware(
 # Register routers
 app.include_router(auth.router)
 app.include_router(dashboard.router)
+app.include_router(local_drugs_router)
 app.include_router(drug_pathway_router)
 app.include_router(system_stats_router)
 app.include_router(similarity_ui_router)
